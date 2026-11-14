@@ -19,7 +19,7 @@ CONFIRM_TIMEOUT_S = 10
 # Models
 WHISPER_MODEL = "mlx-community/whisper-small.en-mlx"
 EMBED_MODEL = "minishlab/potion-base-8M"
-ROUTER_THRESHOLD = 0.80
+ROUTER_THRESHOLD = 0.85     # 93.8% held-out; 0.80 grabbed greetings ("good morning" -> agenda)
 VECTORS_PATH = ROOT / "data" / "command_vectors.npz"
 CLAUDE_MODEL = "claude-haiku-5-5"
 CLAUDE_MAX_TOKENS = 1024
@@ -30,13 +30,29 @@ TTS_SPEED = 1.0
 REFERENCE_VOICE_DIR = ROOT / "data" / "reference_voice"
 
 # HUD
-HUD_FPS = 60
+HUD_FPS = 30               # terminals cannot show more; 60 doubled CPU for nothing
 TELEMETRY_HZ = 1
 LOG_MAX_CHARS = 200
 
-# Stark palette
-STARK_CYAN = "#4FD1FF"
-STARK_DIM = "#1B4F63"
-STARK_AMBER = "#FFB547"
-STARK_RED = "#FF4D4D"
-STARK_BG = "#05080C"
+# Palette (gold holographic). Roles, not hues, so a re-theme is one edit here plus hud/jarvis.tcss.
+HUD_PRIMARY = "#FFB23F"   # gold lines and text
+HUD_DIM = "#6B3F0E"       # back faces, borders, faded text
+HUD_GLOW = "#FFF0C8"      # core and label
+HUD_SPEAKING = "#FFD98A"  # brighter gold while Jarvis talks
+HUD_CONFIRM = "#9FE8FF"   # cool white-cyan: stands out against gold when awaiting a yes/no
+HUD_ERROR = "#FF4D4D"
+HUD_BG = "#070503"
+
+THEMES = {
+    "GOLD": {"HUD_PRIMARY": "#FFB23F", "HUD_DIM": "#6B3F0E", "HUD_GLOW": "#FFF0C8", "HUD_SPEAKING": "#FFD98A",
+             "HUD_CONFIRM": "#9FE8FF", "HUD_BG": "#070503"},
+    "ARC": {"HUD_PRIMARY": "#4FD1FF", "HUD_DIM": "#1B4F63", "HUD_GLOW": "#E6FBFF", "HUD_SPEAKING": "#BFF0FF",
+            "HUD_CONFIRM": "#FFB547", "HUD_BG": "#05080C"},
+    "MATRIX": {"HUD_PRIMARY": "#3DFF7A", "HUD_DIM": "#145C2E", "HUD_GLOW": "#D6FFE3", "HUD_SPEAKING": "#9CFFBE",
+               "HUD_CONFIRM": "#FFB547", "HUD_BG": "#030805"},
+}
+
+
+def apply_theme(name: str) -> None:
+    """Swap the HUD_* role colours; widgets read them at render time. HUD_ERROR stays red in every theme."""
+    globals().update(THEMES[name])

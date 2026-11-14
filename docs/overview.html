@@ -1,0 +1,150 @@
+<title>Jarvis HUD Blueprint</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one 880px column read like a flight-deck spec sheet — bracketed panels, mono readouts, state pills. Single deliberate dark look (the HUD's own palette). */
+:root {
+  --bg: #05080C;
+  --panel: #0A1219;
+  --line: #1B4F63;
+  --fg: #CFE9F3;
+  --muted: #7FA3B3;
+  --cyan: #4FD1FF;
+  --amber: #FFB547;
+  --red: #FF4D4D;
+  --green: #5BE49B;
+  --display: "Chakra Petch", "Avenir Next Condensed", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+header { display: grid; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 clamp(34px, 7vw, 56px)/1 var(--display); letter-spacing: .04em; margin: 0; color: var(--cyan); text-wrap: balance; }
+.lede { max-width: 62ch; margin: 0; color: var(--fg); font-size: 17px; }
+.readouts { display: flex; flex-wrap: wrap; gap: 8px 20px; font: 13px/1.4 var(--mono); color: var(--muted); }
+.readouts b { color: var(--fg); font-weight: 500; }
+h2 { font: 600 20px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 12px; color: var(--cyan); display: flex; align-items: center; gap: 10px; }
+h2::before { content: ""; width: 10px; height: 10px; border: 1px solid var(--cyan); transform: rotate(45deg); flex: none; }
+section { min-width: 0; }
+p { margin: 0 0 10px; max-width: 68ch; }
+.panel { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; position: relative; }
+.panel::before, .panel::after { content: ""; position: absolute; width: 12px; height: 12px; border-color: var(--cyan); border-style: solid; }
+.panel::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+.panel::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+td:first-child { white-space: nowrap; }
+.pill { display: inline-block; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border: 1px solid currentColor; }
+.go { color: var(--green); } .ask { color: var(--amber); } .no { color: var(--red); } .run { color: var(--cyan); } .wait { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 13px; color: var(--cyan); }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 13px/1.3 var(--mono); }
+.flow span { border: 1px solid var(--line); padding: 8px 10px; background: var(--panel); }
+.flow i { color: var(--muted); font-style: normal; }
+.steps { display: grid; gap: 0; }
+.step { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.step .n { font: 600 15px/1 var(--display); color: var(--muted); }
+.step strong { font-weight: 600; }
+.step div { min-width: 0; }
+.step small { display: block; color: var(--muted); font-size: 13px; }
+.quote { font-family: var(--display); font-size: 18px; color: var(--fg); border-left: 2px solid var(--amber); padding-left: 14px; margin: 10px 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+footer { font: 12px/1.5 var(--mono); color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 520px) { .step { grid-template-columns: 26px 1fr; } .step .pill { grid-column: 2; justify-self: start; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Project file · v0.1 · 14 Nov 2026</div>
+    <h1>JARVIS HUD</h1>
+    <p class="lede">A voice assistant that lives in your Mac's terminal. Say "hey Jarvis" or hold Space, and it opens apps, runs your calendar and reminders, plans your day and answers in a British voice you can interrupt.</p>
+    <div class="readouts">
+      <span>HOST <b>Apple M4 · 16 GB</b></span>
+      <span>OS <b>macOS 26.6</b></span>
+      <span>RUNTIME <b>Python 3.12 (uv)</b></span>
+      <span>REPO <b>jarvis-hud · public</b></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>How a command travels</h2>
+    <div class="flow">
+      <span>Wake word / Space</span><i>→</i><span>Whisper (on-device)</span><i>→</i><span>Fast router &lt;15 ms</span><i>→</i><span>Mac action or Claude</span><i>→</i><span>Spoken reply</span>
+    </div>
+    <p style="margin-top:12px">Simple commands like "open Safari" or "what's on the agenda today" never leave your Mac. Anything that needs thinking, like "plan my day", goes to Claude, which can create events and reminders through the same safety layer.</p>
+  </section>
+
+  <section>
+    <h2>What Jarvis may do</h2>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Level</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill go">Runs now</span></td><td>Open and quit apps, volume, brightness, music, timers, system status, read today's agenda, create events and reminders, plan the day</td></tr>
+          <tr><td><span class="pill ask">Asks first</span></td><td>Delete or move files, delete or reschedule events, delete reminders, shell commands, send messages. Jarvis reads the action back; say "yes" or press Enter. Silence for 10 s cancels.</td></tr>
+          <tr><td><span class="pill no">Never</span></td><td>sudo, Keychain, password managers, disk erase, and any file holding keys: <code>.env</code>, <code>~/.ssh</code>, <code>*.pem</code>, tokens</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px">Every word sent to Claude, written to the log or spoken aloud is scrubbed for keys and passwords first. These rules live in code, so a clever prompt can't talk Jarvis out of them.</p>
+  </section>
+
+  <section class="grid2">
+    <div>
+      <h2>Agenda &amp; planning</h2>
+      <p>"What's on the agenda today" reads your events and due reminders instantly from Apple Calendar and Reminders, with no cloud call.</p>
+      <p>"Plan my day" creates everything straight away, gives a short summary, then asks:</p>
+      <p class="quote">"Tell me if I missed anything, or if there's something you'd like to add."</p>
+      <p>The mic stays open for 8 seconds so you can answer without the wake word.</p>
+    </div>
+    <div>
+      <h2>Personality</h2>
+      <p>A bank of original lines, at least 8 per moment, so Jarvis never repeats itself back to back:</p>
+      <ul>
+        <li>Waking up, done, failed, cancelled</li>
+        <li>Morning, afternoon and evening greetings</li>
+        <li>Agenda intro and empty-day lines</li>
+        <li>Low battery and high CPU heads-ups</li>
+        <li>"Anything I missed?" after any multi-step task</li>
+      </ul>
+      <p style="margin-top:10px">All lines live in <code>prompts/lines.yaml</code>, so you can add your own.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>The screen</h2>
+    <div class="panel">
+      <p>A full-terminal display with a 3D dot sphere in the centre that spins faster as you speak and pulses while Jarvis talks. It turns amber when Jarvis is waiting for a confirmation and red on errors. Live CPU, memory, battery, network and git branch run down the left. An aerospace-style action log runs down the right, with your last words fading along the bottom.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Build progress</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><div><strong>Project setup</strong><small>.gitignore first, Python 3.12, 89 pinned libraries, wake-word model downloaded</small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">2</span><div><strong>Shared rules</strong><small><code>contracts.py</code> + <code>config.py</code>, 4/4 tests passing</small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">3</span><div><strong>Data builder</strong><small>4,102 sample commands across 14 actions. Held-out accuracy 94.1% (target 90%), 9/9 tests · <code>feat/data</code></small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">4</span><div><strong>Tools builder</strong><small>Router 95.4% on real held-out phrases in 0.05 ms, safety layer, Calendar, Claude brain, voice lines. 57 tests · <code>feat/tools</code></small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">5</span><div><strong>Audio builder</strong><small>Wake word fixed for Apple Silicon, speech recognition 0.21 s warm, voice 0.18 s per sentence and heard on the speakers, stops in &lt;20 ms · <code>feat/audio</code></small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">6</span><div><strong>HUD builder</strong><small>3D dot sphere + ring, telemetry rail, action log, fading ticker. 6/6 tests, preview checked · <code>feat/hud</code></small></div><span class="pill go">Done</span></div>
+      <div class="step"><span class="n">7</span><div><strong>Wire it together + live voice test</strong><small><code>main.py</code> merged on <code>dev</code>, 94/94 tests. Next: live voice test together and the demo recording</small></div><span class="pill run">Live test</span></div>
+      <div class="step"><span class="n">8</span><div><strong>Security &amp; code review, README, GitHub</strong><small>Secret scan before push, branches merged by pull request</small></div><span class="pill wait">Next</span></div>
+      <div class="step"><span class="n">9</span><div><strong>LinkedIn launch</strong><small>Featured card, demo video and post, published only after your yes</small></div><span class="pill wait">Next</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Branches</h2>
+    <div class="flow">
+      <span>feat/data · feat/tools · feat/audio · feat/hud</span><i>→ PR →</i><span>dev</span><i>→ PR →</i><span>main</span>
+    </div>
+  </section>
+
+  <footer>Fan project. Not affiliated with Marvel. No film assets or cloned actor voices are used; the default voice is Kokoro "bm_george".</footer>
+</div>
