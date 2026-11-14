@@ -127,3 +127,16 @@ def test_core_globe_is_not_empty():
 def test_core_label_fits_small_widget():
     text = _core_rows(w=8, h=3)  # narrower than the label: must not crash or overflow
     assert all(len(r) == 8 for r in text.plain.splitlines())
+
+
+def test_core_lines_are_continuous():
+    # Lines read as dotted when neighbouring samples land >1 screen dot apart; check at a big full-screen size.
+    import numpy as np
+    from hud.core_widget import CoreWidget, _bits
+    c = CoreWidget()
+    w, h = 240, 70
+    s = min(2 * w, 4 * h) / 2 * 0.72  # same projection scale as _bits
+    for name, pts in [("globe", c._globe), ("orbit", c._orbit_a)]:
+        steps = np.linalg.norm(np.diff(pts, axis=0), axis=1) * s  # 3D spacing bounds the on-screen spacing
+        steps = steps[steps < 6]  # ignore jumps between separate lines / dashes
+        assert np.percentile(steps, 99) <= 1.2, f"{name} step {np.percentile(steps, 99):.2f} dots"

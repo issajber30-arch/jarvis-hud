@@ -25,7 +25,8 @@ def _circle(n: int) -> np.ndarray:
     return np.stack([np.cos(a), np.zeros_like(a), np.sin(a)], 1)
 
 
-def _globe(n_lat: int = 7, n_lon: int = 12, per_line: int = 220) -> np.ndarray:
+# Sample counts keep neighbouring points <=1 screen dot apart at full-screen size, so lines draw solid.
+def _globe(n_lat: int = 7, n_lon: int = 12, per_line: int = 600) -> np.ndarray:
     """Latitude circles + meridians on the unit sphere."""
     c = _circle(per_line)
     lats = [c * np.cos(t) + [0, np.sin(t), 0] for t in np.linspace(-np.pi / 2, np.pi / 2, n_lat + 2)[1:-1]]
@@ -35,7 +36,7 @@ def _globe(n_lat: int = 7, n_lon: int = 12, per_line: int = 220) -> np.ndarray:
     return np.vstack(lats + lons)
 
 
-def _orbit(radius: float, n: int = 420, dash: int = 14) -> np.ndarray:
+def _orbit(radius: float, n: int = 900, dash: int = 30) -> np.ndarray:
     """A dashed ring in the xz plane; dashes make its spin visible."""
     pts = radius * _circle(n)
     return pts[(np.arange(n) // dash) % 3 != 2]
