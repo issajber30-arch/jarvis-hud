@@ -15,10 +15,6 @@ from contracts import AudioTelemetryFrame, HUDState
 # Braille dot bit for (row, col) inside a 2x4 cell.
 _BIT = np.array([[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]], dtype=np.uint8)
 
-_COLORS = {
-    HUDState.CONFIRM: config.HUD_CONFIRM,
-    HUDState.ERROR: config.HUD_ERROR,
-}
 LABEL = "J A R V I S"
 _DOTS_PER_UNIT = 130  # samples per unit length: keeps lines <=1 screen dot apart up to ~240x70 cells
 _SHELL_RADII = np.linspace(0.50, 1.32, 8)  # outer shell uses the room the old orbit rings had
@@ -288,7 +284,8 @@ class CoreWidget(Widget):
             rows[mid] = rows[mid][:x0] + label + rows[mid][x0 + len(label):]
             layer[mid, x0:x0 + len(label)] = _TEXT
 
-        bright = _COLORS.get(self.state, config.HUD_PRIMARY)
+        bright = {HUDState.CONFIRM: config.HUD_CONFIRM, HUDState.ERROR: config.HUD_ERROR}.get(
+            self.state, config.HUD_PRIMARY)
         if self.state is HUDState.SPEAKING:
             bright = config.HUD_SPEAKING
         styles = {_DIM: config.HUD_DIM, _BRIGHT: bright, _CORE: config.HUD_GLOW, _TEXT: f"bold {config.HUD_GLOW}"}

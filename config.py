@@ -42,3 +42,17 @@ HUD_SPEAKING = "#FFD98A"  # brighter gold while Jarvis talks
 HUD_CONFIRM = "#9FE8FF"   # cool white-cyan: stands out against gold when awaiting a yes/no
 HUD_ERROR = "#FF4D4D"
 HUD_BG = "#070503"
+
+THEMES = {
+    "GOLD": {"HUD_PRIMARY": "#FFB23F", "HUD_DIM": "#6B3F0E", "HUD_GLOW": "#FFF0C8", "HUD_SPEAKING": "#FFD98A",
+             "HUD_CONFIRM": "#9FE8FF", "HUD_BG": "#070503"},
+    "ARC": {"HUD_PRIMARY": "#4FD1FF", "HUD_DIM": "#1B4F63", "HUD_GLOW": "#E6FBFF", "HUD_SPEAKING": "#BFF0FF",
+            "HUD_CONFIRM": "#FFB547", "HUD_BG": "#05080C"},
+    "MATRIX": {"HUD_PRIMARY": "#3DFF7A", "HUD_DIM": "#145C2E", "HUD_GLOW": "#D6FFE3", "HUD_SPEAKING": "#9CFFBE",
+               "HUD_CONFIRM": "#FFB547", "HUD_BG": "#030805"},
+}
+
+
+def apply_theme(name: str) -> None:
+    """Swap the HUD_* role colours; widgets read them at render time. HUD_ERROR stays red in every theme."""
+    globals().update(THEMES[name])

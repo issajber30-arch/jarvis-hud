@@ -300,3 +300,61 @@ async def test_narrow_window_drops_rails():
     async with app.run_test(size=(90, 30)) as pilot:
         await pilot.pause(0.1)
         assert not app.query_one("#right").display
+
+
+async def test_focus_key_hides_and_restores_rails():
+    app, _ = make_app()
+    async with app.run_test(size=(180, 50)) as pilot:
+        await pilot.pause(0.1)
+        await pilot.press("f")
+        await pilot.pause(0.1)
+        assert not app.query_one("TelemetryWidget").display and not app.query_one("#right").display
+        assert app.screen.styles.grid_size_columns == 1
+        await pilot.press("f")
+        await pilot.pause(0.1)
+        assert app.query_one("TelemetryWidget").display and app.query_one("#right").display
+        assert app.screen.styles.grid_size_columns == 3
+
+
+async def test_focus_wins_over_width_on_resize():
+    app, _ = make_app()
+    async with app.run_test(size=(180, 50)) as pilot:
+        await pilot.press("f")
+        await pilot.resize_terminal(200, 50)
+        await pilot.pause(0.1)
+        assert not app.query_one("#right").display
+
+
+async def test_theme_key_cycles_and_restyles():
+    import config
+    from hud.log_widget import LogWidget
+    from hud.status_widget import StatusWidget
+    app, _ = make_app()
+    async with app.run_test(size=(180, 50)) as pilot:
+        try:
+            assert config.HUD_PRIMARY == "#FFB23F"
+            await pilot.press("t")
+            await pilot.pause(0.1)
+            assert config.HUD_PRIMARY == "#4FD1FF"
+            log = app.query_one(LogWidget)
+            assert log.styles.border.top[1].hex == "#1B4F63"
+            assert app.screen.styles.background.hex == "#05080C"
+            assert config.HUD_PRIMARY.lower() in str(app.query_one(StatusWidget).render().spans).lower()
+            assert any("THEME ARC" in l for l in log.lines)
+            await pilot.press("t")
+            assert config.HUD_PRIMARY == "#3DFF7A"
+            await pilot.press("t")
+            await pilot.pause(0.05)
+            assert config.HUD_PRIMARY == "#FFB23F" and log.styles.border.top[1].hex == "#6B3F0E"
+        finally:
+            config.apply_theme("GOLD")
+
+
+async def test_ticker_hint_only_when_empty():
+    from hud.log_widget import TickerWidget
+    app, _ = make_app()
+    async with app.run_test():
+        t = app.query_one(TickerWidget)
+        assert "SPACE TALK · ENTER CONFIRM · F FOCUS · T THEME · Q QUIT" in t.render().plain
+        t.say("hello")
+        assert "SPACE TALK" not in t.render().plain

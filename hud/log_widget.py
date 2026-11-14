@@ -12,6 +12,7 @@ import config
 
 KEEP = 200
 FADE_S = 4.0
+HINT = "SPACE TALK · ENTER CONFIRM · F FOCUS · T THEME · Q QUIT"
 
 
 class TickerWidget(Widget):
@@ -47,7 +48,7 @@ class TickerWidget(Widget):
     def render(self) -> Text:
         age = time.monotonic() - self._t0
         if not self.text or age >= self._type_s + FADE_S:
-            return Text("")
+            return Text(HINT, style=config.HUD_DIM, no_wrap=True, overflow="ellipsis")
         fade_age = age - self._type_s
         style = config.HUD_PRIMARY if fade_age < FADE_S / 2 else config.HUD_DIM
         if self._type_s:

@@ -39,6 +39,8 @@ class JarvisApp(App):
     BINDINGS = [
         Binding("space", "talk", "Talk / interrupt", priority=True),
         Binding("enter", "confirm_yes", "Confirm", priority=True),
+        Binding("f", "focus_mode", "Focus"),
+        Binding("t", "cycle_theme", "Theme"),
         Binding("q", "quit_jarvis", "Quit"),
     ]
 
@@ -52,6 +54,9 @@ class JarvisApp(App):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._warned: set[str] = set()
         self._cpu_hot_s = 0
+        self._width = 0
+        self.focus_on = False
+        self.theme_name = "GOLD"
         from audio.chime import play_chime
         self.chime = play_chime  # tests swap it; hud-only sets None
 
@@ -184,14 +189,41 @@ class JarvisApp(App):
         self.query_one(LogWidget).ticker(redact(text))
 
     def on_resize(self, event) -> None:
+        self._width = event.size.width
+        self._apply_layout()
+
+    def _apply_layout(self) -> None:
         # Narrow windows drop rails instead of squashing everything: <140 cols loses SYS, <100 loses the right rail.
-        w = event.size.width
+        # Focus mode hides both regardless of width.
+        w = self._width
         left, right = self.query_one(TelemetryWidget), self.query_one("#right")
-        left.display, right.display = w >= 140, w >= 100
+        left.display, right.display = w >= 140 and not self.focus_on, w >= 100 and not self.focus_on
         cols = (["36"] if left.display else []) + ["1fr"] + (["42"] if right.display else [])
         self.screen.styles.grid_size_columns = len(cols)
         self.screen.styles.grid_columns = " ".join(cols)
         self.query_one(TickerWidget).styles.column_span = len(cols)
+
+    def action_focus_mode(self) -> None:
+        self.focus_on = not self.focus_on
+        self._apply_layout()
+
+    def action_cycle_theme(self) -> None:
+        names = list(config.THEMES)
+        self.theme_name = names[(names.index(self.theme_name) + 1) % len(names)]
+        config.apply_theme(self.theme_name)
+        self._restyle()
+        self._hud_log(f"THEME {self.theme_name}")
+
+    def _restyle(self) -> None:
+        # CSS carries the boot colours; push the live role colours onto every widget, then repaint once.
+        c = config
+        self.screen.styles.background, self.screen.styles.color = c.HUD_BG, c.HUD_PRIMARY
+        for w in (*self.query(TelemetryWidget), *self.query(CoreWidget), *self.query("#right > *"),
+                  *self.query(TickerWidget), *self.query(ConfirmCard)):
+            w.styles.background, w.styles.color = c.HUD_BG, c.HUD_CONFIRM if isinstance(w, ConfirmCard) else c.HUD_PRIMARY
+            if w.styles.border.top[0]:
+                w.styles.border = ("round", c.HUD_CONFIRM if isinstance(w, ConfirmCard) else c.HUD_DIM)
+            w.refresh()
 
     # ---------- listener events ----------
     def _on_listener_event(self, ev: ListenerEvent) -> None:
