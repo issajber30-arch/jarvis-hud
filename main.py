@@ -235,13 +235,24 @@ class JarvisApp(App):
         return ok
 
     # ---------- a turn ----------
+    async def _caption(self, sentences) -> None:
+        # Estimated timing (speaker has no per-sentence callback): 0.32 s a word, 0.6 s minimum.
+        ticker = self.query_one(TickerWidget)
+        for s in sentences:
+            s = redact(s)
+            secs = max(0.6, 0.32 * len(s.split()))
+            ticker.type_out(s, secs)
+            await asyncio.sleep(secs)
+
     async def _say(self, sentences) -> bool:
         self._set_state(HUDState.SPEAKING)
         self.listener.set_speaking(True)
+        caption = asyncio.create_task(self._caption(list(sentences)))
         try:
             return await self.speaker.speak(sentences)
         finally:
             self.listener.set_speaking(False)
+            caption.cancel()  # a finished or interrupted sentence stops typing; the text stays and fades
 
     async def _execute(self, action: Action, results: list[ActionResult]) -> ActionResult:
         self._hud_log(f"EXEC {action.name} {' '.join(str(v) for v in action.args.values())}")

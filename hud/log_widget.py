@@ -1,6 +1,7 @@
 """Right rail: aerospace-style event log, plus the bottom utterance ticker."""
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 
@@ -22,24 +23,38 @@ class TickerWidget(Widget):
         super().__init__(*args, **kwargs)
         self.text = ""
         self._t0 = 0.0
+        self._type_s = 0.0    # > 0 while Jarvis's caption types out
+        self._words: list[str] = []
 
     def on_mount(self) -> None:
         self.set_interval(0.1, self._repaint_if_fading)
 
     def _repaint_if_fading(self) -> None:
         # Only repaint while text is on screen or just finished fading (one last clear).
-        if self.text and time.monotonic() - self._t0 < FADE_S + 0.2:
+        if self.text and time.monotonic() - self._t0 < self._type_s + FADE_S + 0.2:
             self.refresh()
 
     def say(self, text: str) -> None:
-        self.text, self._t0 = text[: config.LOG_MAX_CHARS], time.monotonic()
+        self.text, self._t0, self._type_s = text[: config.LOG_MAX_CHARS], time.monotonic(), 0.0
+        self.refresh()
+
+    def type_out(self, text: str, seconds: float) -> None:
+        """Reveal Jarvis's sentence word by word over `seconds`; the 0.1 s timer repaints, no per-word timers."""
+        self.text, self._t0, self._type_s = text[: config.LOG_MAX_CHARS], time.monotonic(), max(seconds, 0.1)
+        self._words = self.text.split()
         self.refresh()
 
     def render(self) -> Text:
         age = time.monotonic() - self._t0
-        if not self.text or age >= FADE_S:
+        if not self.text or age >= self._type_s + FADE_S:
             return Text("")
-        style = config.HUD_PRIMARY if age < FADE_S / 2 else config.HUD_DIM
+        fade_age = age - self._type_s
+        style = config.HUD_PRIMARY if fade_age < FADE_S / 2 else config.HUD_DIM
+        if self._type_s:
+            n = math.ceil(len(self._words) * min(age / self._type_s, 1.0))
+            out = Text(no_wrap=True, overflow="ellipsis")
+            out.append("JARVIS ▸ ", style=config.HUD_GLOW)
+            return out.append(" ".join(self._words[:n]), style=style)
         return Text("▸ " + self.text, style=style, no_wrap=True, overflow="ellipsis")
 
 

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from textual.app import App, ComposeResult
@@ -72,3 +73,36 @@ def test_status_mode_and_state_do_not_collide():
     s.mode, s.state = "HUD-ONLY", "SPEAKING"
     plain = s.render().plain
     assert "HUD-ONLYSTATE" not in plain and "MODE  HUD-ONLY" in plain and "STATE SPEAKING" in plain
+
+
+def test_ticker_type_out_grows_then_completes():
+    import time
+    from hud.log_widget import TickerWidget
+    t = TickerWidget()
+    t.type_out("one two three four", 1.0)
+    seen = []
+    for age in (0.0, 0.3, 0.6, 0.9, 1.2):
+        t._t0 = time.monotonic() - age
+        seen.append(t.render().plain)
+    assert all(s.startswith("JARVIS ▸ ") for s in seen)
+    assert [len(s) for s in seen] == sorted(len(s) for s in seen)
+    assert seen[-1] == "JARVIS ▸ one two three four" and seen[0] != seen[-1]
+    t.say("hello")
+    assert t.render().plain == "▸ hello"
+
+
+async def test_say_types_caption_for_each_sentence():
+    from main import JarvisApp
+    from hud.log_widget import TickerWidget
+    from tests.test_main import make_app
+    app, _ = make_app()
+    async with app.run_test() as pilot:
+        orig = app.speaker.speak
+
+        async def slow(sentences):
+            await asyncio.sleep(0.1)
+            return await orig(sentences)
+
+        app.speaker.speak = slow
+        await app._say(["Certainly sir."])
+        assert app.query_one(TickerWidget).text == "Certainly sir."
