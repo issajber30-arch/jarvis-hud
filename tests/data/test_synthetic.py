@@ -30,3 +30,19 @@ def test_agenda_phrases():
     ph = [p for p, a, _ in generate_pairs() if a == "agenda_today"]
     assert "what's on the agenda today" in ph
     assert len(ph) >= 8
+
+
+def test_thresholded_accuracy(tmp_path):
+    import config
+    from model2vec import StaticModel
+
+    p = tmp_path / "v.npz"
+    build(p)
+    d = np.load(p)
+    tr = d["split"] == "train"
+    q = StaticModel.from_pretrained(config.EMBED_MODEL).encode(list(d["phrases"][~tr]))
+    q /= np.linalg.norm(q, axis=1, keepdims=True)
+    sims = q @ d["vectors"][tr].T
+    best = sims.argmax(1)
+    ok = (d["actions"][tr][best] == d["actions"][~tr]) & (sims.max(1) >= config.ROUTER_THRESHOLD)
+    assert ok.mean() >= 0.90, ok.mean()

@@ -11,7 +11,7 @@ import numpy as np
 import config
 from contracts import FAST_ROUTE_ACTIONS
 
-APPS = ["safari", "spotify", "notes", "terminal", "slack", "calendar", "messages", "mail", "finder", "music"]
+APPS = ["safari", "spotify", "notes", "terminal", "slack", "calendar", "messages", "mail", "finder", "photos"]
 LEVELS = [10, 25, 30, 40, 50, 60, 75, 80, 100]
 MINUTES = [1, 2, 5, 10, 15, 20, 30, 45]
 
@@ -21,13 +21,13 @@ TEMPLATES: dict[str, tuple[str | None, list[str]]] = {
         "open {app}", "launch {app}", "start {app}", "hey jarvis open {app}", "can you open {app}",
         "please open {app} for me", "fire up {app}", "bring up {app}", "open up {app}",
         "jarvis launch {app}", "i need {app} open", "could you launch {app}", "open the {app} app",
-        "launch {app} for me", "start up {app}", "fire up the {app} app", "bring up the {app} app", "get {app} going", "open {app} up", "start {app} please", "pull up the {app} app", "open {app} now", "go ahead and open {app}", "get {app} open", "run {app}", "switch on {app}", "pull up {app}", "open {app} please",
+        "launch {app} for me", "start up {app}", "open the {app} app for me", "open the {app} application", "launch the {app} app", "start the {app} app", "run the {app} app", "run {app} for me", "get {app} up", "switch on the {app} app", "kick off {app}", "load {app}", "fire up the {app} app", "bring up the {app} app", "open {app} up", "start {app} please", "pull up the {app} app", "open {app} now", "go ahead and open {app}", "get {app} open", "run {app}", "switch on {app}", "pull up {app}", "open {app} please",
     ]),
     "quit_app": ("app", [
         "quit {app}", "close {app}", "hey jarvis quit {app}", "shut down {app}", "exit {app}",
         "please close {app}", "can you quit {app}", "kill {app}", "close the {app} app",
         "jarvis close {app}", "i'm done with {app} so quit it", "could you shut {app} down",
-        "please quit {app}", "quit {app} now", "kill the {app} app", "force quit {app}", "close out of {app}", "end {app}", "exit the {app} app", "shut down the {app} app", "terminate the {app} app", "close {app} please", "shut {app} down", "terminate {app}", "get rid of {app}", "close down {app}", "quit the {app} app",
+        "please quit {app}", "quit {app} now", "close the {app} app down", "close the {app} application", "quit the {app} application", "kill {app}", "kill the {app} application", "shut the {app} app", "shut {app}", "stop {app}", "close out the {app} app", "close {app} for me", "end the {app} app", "get rid of the {app} app", "kill the {app} app", "force quit {app}", "close out of {app}", "end {app}", "exit the {app} app", "shut down the {app} app", "terminate the {app} app", "close {app} please", "shut {app} down", "terminate {app}", "get rid of {app}", "close down {app}", "quit the {app} app",
     ]),
     "set_volume": ("level", [
         "set the volume to {level}", "volume to {level}", "hey jarvis set volume to {level} percent",
@@ -39,17 +39,17 @@ TEMPLATES: dict[str, tuple[str | None, list[str]]] = {
         "turn it up", "volume up", "louder", "hey jarvis turn the volume up", "make it louder",
         "raise the volume", "increase the volume", "a bit louder please", "crank it up",
         "jarvis volume up a bit", "can you turn the sound up", "bump the volume up",
-        "raise the sound", "turn the sound up", "can you turn the volume up", "make it a little louder", "volume higher", "up a bit", "turn up the volume", "turn it up a bit", "louder please", "more volume", "i can't hear it turn it up", "turn the volume up a little", "make the sound louder",
+        "raise the sound", "turn the sound up a bit", "turn it up a bit please", "turn it up a little", "turn the sound up please", "crank it", "crank up the volume", "crank the sound up", "louder now", "much louder", "make it louder please", "it's too quiet", "i can't hear anything turn it up", "up a little", "a little louder", "boost the sound", "give me more sound", "boost the volume", "can you make it louder", "turn the sound up", "can you turn the volume up", "make it a little louder", "volume higher", "up a bit", "turn up the volume", "turn it up a bit", "louder please", "more volume", "i can't hear it turn it up", "turn the volume up a little", "make the sound louder",
     ]),
     "volume_down": (None, [
         "turn it down", "volume down", "quieter", "hey jarvis turn the volume down", "make it quieter",
         "lower the volume", "decrease the volume", "a bit quieter please", "too loud turn it down",
         "jarvis volume down a bit", "can you turn the sound down", "reduce the volume",
-        "lower the sound", "turn the sound down", "can you turn the volume down", "make it a little quieter", "volume lower", "down a bit", "turn down the volume", "turn it down a bit", "quieter please", "less volume", "softer", "not so loud", "turn the volume down a little", "it's too loud",
+        "lower the sound", "turn the sound down a bit", "turn the sound down please", "bring it down", "down a little", "a little quieter", "lower it", "turn it down a bit please", "bring the volume down", "tone it down", "much quieter", "quieter now", "make it quieter please", "it's too loud", "give me less sound", "drop the volume", "can you make it quieter", "ease the volume down", "turn the sound down", "can you turn the volume down", "make it a little quieter", "volume lower", "down a bit", "turn down the volume", "turn it down a bit", "quieter please", "less volume", "softer", "not so loud", "turn the volume down a little", "it's too loud",
     ]),
     "mute": (None, [
         "mute", "mute the sound", "hey jarvis mute", "silence the audio", "mute the volume",
-        "turn the sound off", "shut the sound off", "mute it", "jarvis mute please", "mute please", "mute the speakers", "shut the sound off", "turn off the sound", "no sound", "mute the audio", "silence",
+        "turn the sound off", "shut the sound off", "mute it", "jarvis mute please", "mute please", "kill the sound", "kill the volume", "cut the sound", "turn the sound off please", "shut off the sound", "mute the speakers", "shut the sound off", "turn off the sound", "no sound", "mute the audio", "silence",
         "can you mute the computer", "kill the sound", "turn off the audio",
     ]),
     "set_brightness": ("level", [
