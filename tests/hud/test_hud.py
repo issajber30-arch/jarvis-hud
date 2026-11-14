@@ -156,3 +156,24 @@ def test_core_confirm_state_stands_out():
     from contracts import HUDState
     styles = {str(sp.style) for sp in _core_rows(state=HUDState.CONFIRM).spans}
     assert config.HUD_CONFIRM in styles
+
+
+def test_core_draws_binary_digits():
+    text = _core_rows()
+    rows = text.plain.splitlines()
+    mid = len(rows) // 2
+    body = "".join(r for i, r in enumerate(rows) if i != mid)  # label row aside
+    assert set(body) <= {"0", "1", " "}
+    assert body.count("0") > 100 and body.count("1") > 100
+
+
+def test_core_digits_shimmer_between_frames():
+    from unittest.mock import PropertyMock, patch
+    from textual.geometry import Size
+    from hud.core_widget import CoreWidget
+    c = CoreWidget()
+    with patch.object(CoreWidget, "size", new_callable=PropertyMock, return_value=Size(120, 55)):
+        a = c.render().plain
+        c.tick(1 / 30)
+        b = c.render().plain
+    assert a != b

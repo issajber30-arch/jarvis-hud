@@ -1,5 +1,5 @@
 """Hero widget: a holographic data sphere — nested shells of broken arcs, data shards and a swirling core —
-drawn on a Braille canvas. Original design in the holographic-HUD genre; no film assets."""
+drawn in shimmering binary digits. Original design in the holographic-HUD genre; no film assets."""
 from __future__ import annotations
 
 import numpy as np
@@ -133,6 +133,8 @@ class CoreWidget(Widget):
         self._omega = self.BASE_OMEGA
         self._rms = 0.0
         self._pulse = 0.0
+        self._digits = np.zeros((0, 0), dtype='<U1')  # per-cell 0/1, resized on demand
+        self._rng = np.random.default_rng()
 
     def on_mount(self) -> None:
         self.set_interval(1 / config.HUD_FPS, lambda: self.tick(1 / config.HUD_FPS))
@@ -165,10 +167,18 @@ class CoreWidget(Widget):
         layer = np.where(b_core > 0, _CORE, np.where(b_front > 0, _BRIGHT, np.where(b_back > 0, _DIM, 0)))
         return b_back | b_front | b_core, layer
 
+    def _binary(self, bits: np.ndarray) -> list[str]:
+        """Lit cells show a 0 or 1; ~4% flip each frame so the sphere shimmers like streaming data."""
+        if self._digits.shape != bits.shape:
+            self._digits = self._rng.choice(np.array(["0", "1"]), size=bits.shape)
+        flip = self._rng.random(bits.shape) < 0.04
+        self._digits[flip] = np.where(self._digits[flip] == "0", "1", "0")
+        return ["".join(row) for row in np.where(bits > 0, self._digits, " ")]
+
     def render(self) -> Text:
         w, h = max(self.size.width, 1), max(self.size.height, 1)
         bits, layer = self._layers(w, h)
-        rows = _chars(bits)
+        rows = self._binary(bits)
         label = f" {LABEL} "
         if len(label) <= w:  # stamp the name on the centre row, padded so it reads over the core
             mid, x0 = h // 2, (w - len(label)) // 2
