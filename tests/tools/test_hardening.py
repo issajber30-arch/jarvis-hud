@@ -17,7 +17,7 @@ async def _yes(_): return True
 @pytest.mark.parametrize("s,secret", [
     ("DB_PASSWORD=hunter2", "hunter2"), ("ANTHROPIC_API_KEY=abc123def", "abc123def"),
     ('{"password": "x y"}', "x y"), ('password="a b c"', "b c"), ("Authorization: Bearer abcdefghij0123456789", "abcdefghij0123456789"),
-    ("AIza" + "A" * 35, "A" * 35), ("sk_live_abcdef123456", "abcdef123456"), ("sk_test_abcdef123456", "abcdef123456")])
+    ("AIza" + "A" * 35, "A" * 35), ("sk_" + "live_abcdef123456", "abcdef123456"), ("sk_" + "test_abcdef123456", "abcdef123456")])
 def test_redact_more(s, secret):
     out = redact(s)
     assert secret not in out and "[REDACTED]" in out
