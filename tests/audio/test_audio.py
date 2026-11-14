@@ -42,6 +42,7 @@ class FakeOut:
     def start(self): pass
     def close(self): pass
     def abort(self): self.aborted = True
+    def stop(self): pass
 
     def write(self, block):
         time.sleep(len(block) / 24000)  # real-time device
@@ -167,3 +168,22 @@ def test_followup_window_starts_capture_on_speech():
     for _ in range(12):
         l._on_block(np.zeros(1280, np.float32))
     assert [e.kind for e in ev] == ["utterance"]
+
+
+class RecordingOut:
+    def __init__(self): self.calls = []
+    def start(self): self.calls.append("start")
+    def write(self, block): self.calls.append("write"); return False
+    def stop(self): self.calls.append("stop")
+    def abort(self): self.calls.append("abort")
+    def close(self): self.calls.append("close")
+
+
+async def test_speaker_drains_before_close():
+    # Regression: close() discards buffered audio, clipping every sentence's ending (heard as crackle).
+    import numpy as np
+    from audio.speaker import Speaker
+    out = RecordingOut()
+    sp = Speaker(on_audio=lambda f: None, stream_factory=lambda: out, synth=lambda t: np.zeros(2400, np.float32))
+    assert await sp.speak(["Hello."])
+    assert out.calls.index("stop") < out.calls.index("close")

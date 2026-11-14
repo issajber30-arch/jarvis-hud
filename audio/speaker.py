@@ -104,5 +104,8 @@ class Speaker:
             ok = await play_task
             self._speaking = False
             stream, self._stream = self._stream, None
+            if not self._stop.is_set():
+                # close() alone discards buffered audio and clips the sentence ending; stop() drains it first
+                await loop.run_in_executor(self._play_pool, stream.stop)
             stream.close()
         return ok and not self._stop.is_set()
