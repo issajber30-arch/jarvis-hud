@@ -43,8 +43,11 @@ def _bits(points: np.ndarray, w: int, h: int, scale: float = 1.0) -> np.ndarray:
     return out
 
 
+_GLYPH = np.array([" "] + [chr(0x2800 + i) for i in range(1, 256)])  # bit mask -> Braille cell
+
+
 def _chars(bits: np.ndarray) -> list[str]:
-    return ["".join(" " if b == 0 else chr(0x2800 + int(b)) for b in row) for row in bits]
+    return ["".join(row) for row in _GLYPH[bits]]
 
 
 def render_braille(points: np.ndarray, w: int, h: int) -> list[str]:
@@ -103,7 +106,15 @@ class CoreWidget(Widget):
         dim = config.STARK_DIM
         out = Text(no_wrap=True)
         for ny, fy in zip(_chars(near), _chars(far | near)):
+            # one span per colour run instead of per character; blanks join the current run (no visible colour)
+            row, style = [], None
             for n, f in zip(ny, fy):
-                out.append(f, style=bright if n != " " else dim)
+                s = bright if n != " " else dim if f != " " else style
+                if s != style and row:
+                    out.append("".join(row), style=style)
+                    row = []
+                style = s
+                row.append(f)
+            out.append("".join(row), style=style)
             out.append("\n")
         return out

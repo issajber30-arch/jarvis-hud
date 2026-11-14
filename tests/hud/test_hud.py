@@ -76,3 +76,21 @@ async def test_widgets_mount():
         await pilot.pause(0.2)
         core.state = HUDState.ERROR
         await pilot.pause(0.1)
+
+
+def test_core_frame_is_cheap():
+    # Regression: per-character spans made a 120x55 frame cost ~17 ms and pinned a core at 60 fps.
+    import time
+    from unittest.mock import PropertyMock, patch
+    from rich.console import Console
+    from textual.geometry import Size
+    from hud.core_widget import CoreWidget
+    w = CoreWidget()
+    console = Console(width=120, file=open("/dev/null", "w"), color_system="truecolor")
+    with patch.object(CoreWidget, "size", new_callable=PropertyMock, return_value=Size(120, 55)):
+        list(console.render(w.render()))  # warm-up
+        t = time.perf_counter()
+        for _ in range(20):
+            list(console.render(w.render()))
+        ms = (time.perf_counter() - t) / 20 * 1000
+    assert ms < 5, f"core frame took {ms:.1f} ms"

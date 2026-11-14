@@ -30,7 +30,7 @@ TTS_SPEED = 1.0
 REFERENCE_VOICE_DIR = ROOT / "data" / "reference_voice"
 
 # HUD
-HUD_FPS = 60
+HUD_FPS = 30               # terminals cannot show more; 60 doubled CPU for nothing
 TELEMETRY_HZ = 1
 LOG_MAX_CHARS = 200
 

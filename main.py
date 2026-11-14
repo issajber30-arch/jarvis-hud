@@ -86,6 +86,10 @@ class JarvisApp(App):
         if hasattr(self.speaker, "_synth"):
             await asyncio.to_thread(self.speaker._synth, "Ready.")
         self._hud_log("VOICE ONLINE")
+        from audio import stt
+        import numpy as np
+        await asyncio.to_thread(stt.transcribe, np.zeros(config.SAMPLE_RATE, np.float32))  # load Whisper now
+        self._hud_log("SPEECH ONLINE")
         try:
             await asyncio.to_thread(self.listener.start)
             self._hud_log("MIC ONLINE · SAY 'HEY JARVIS' OR TAP SPACE")

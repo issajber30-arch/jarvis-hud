@@ -188,3 +188,18 @@ def test_prepare_runtime_before_tui():
     prepare_runtime()
     assert os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] == "1"
     assert resource_tracker._resource_tracker._fd is not None
+
+
+async def test_boot_warms_speech_recognition(monkeypatch):
+    # Regression: Whisper loaded on the first command (~12 s wait); boot must warm it.
+    import audio.stt
+    calls = []
+    monkeypatch.setattr(audio.stt, "transcribe", lambda a: calls.append(len(a)) or "")
+    app = JarvisApp(router=FakeRouter(), brain=FakeBrain(["ok"]), speaker=FakeSpeaker(), listener=FakeListener(),
+                    controller=lambda a, c: None, agenda_fn=lambda: [], greet=True)
+    async with app.run_test() as pilot:
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if calls:
+                break
+    assert calls, "speech recognition was not warmed at boot"
