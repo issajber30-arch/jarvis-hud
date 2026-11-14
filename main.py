@@ -15,6 +15,7 @@ from textual.containers import Vertical
 
 import config
 from contracts import Action, ActionResult, HUDState, JarvisResponse, ListenerEvent
+from hud.cards_widget import CardsWidget
 from hud.core_widget import CoreWidget
 from hud.log_widget import LogWidget, TickerWidget
 from hud.status_widget import AgendaWidget, StatusWidget
@@ -57,6 +58,7 @@ class JarvisApp(App):
         with Vertical(id="right"):
             yield StatusWidget()
             yield VoiceWidget()
+            yield CardsWidget()
             yield LogWidget()
             yield AgendaWidget()
         yield TickerWidget()
@@ -65,6 +67,7 @@ class JarvisApp(App):
     def on_mount(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._hud_log("BOOT SEQUENCE")
+        self.query_one(CardsWidget).on_done = lambda label: self._hud_log(f"{label} DONE")
         if self.controller is None:
             from tools import mac_controller
             self.controller = mac_controller.execute
@@ -259,7 +262,19 @@ class JarvisApp(App):
         r = await self.controller(action, self._confirm)
         self._hud_log(f"{'OK' if r.ok else 'FAIL'} {action.name} {r.message}")
         results.append(r)
+        if r.ok:
+            self._card(action)
         return r
+
+    def _card(self, action: Action) -> None:
+        cards = self.query_one(CardsWidget)
+        if action.name == "set_timer":
+            try:
+                cards.add_timer("timer", float(action.args["minutes"]) * 60)
+            except (KeyError, TypeError, ValueError):
+                pass
+        elif action.name in ("create_reminder", "create_event"):
+            cards.add_note(f"✓ {action.name.split('_')[1]} {action.args.get('title', '')}")
 
     def _brain_context(self, agenda: list) -> dict:
         frame = self.query_one(TelemetryWidget).frame

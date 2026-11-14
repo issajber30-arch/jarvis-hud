@@ -5,6 +5,7 @@ CoreWidget { width: 100%; height: 100%; background: #070503; }
 #right { width: 100%; height: 100%; }
 StatusWidget { width: 100%; height: 13; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 VoiceWidget { width: 100%; height: 15; border: round #6B3F0E; color: #FFB23F; background: #070503; }
+CardsWidget { width: 100%; height: 6; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 AgendaWidget { width: 100%; height: 11; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 LogWidget { width: 100%; height: 1fr; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 TickerWidget { column-span: 3; height: 1; color: #FFB23F; background: #070503; }
