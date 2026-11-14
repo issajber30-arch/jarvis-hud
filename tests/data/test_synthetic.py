@@ -44,5 +44,7 @@ def test_thresholded_accuracy(tmp_path):
     q /= np.linalg.norm(q, axis=1, keepdims=True)
     sims = q @ d["vectors"][tr].T
     best = sims.argmax(1)
-    ok = (d["actions"][tr][best] == d["actions"][~tr]) & (sims.max(1) >= config.ROUTER_THRESHOLD)
+    # Raw data-coverage check at the cut the data was built for; the real router (with app lookup) is held
+    # to >=90% at config.ROUTER_THRESHOLD in tests/tools/test_router.py.
+    ok = (d["actions"][tr][best] == d["actions"][~tr]) & (sims.max(1) >= 0.80)
     assert ok.mean() >= 0.90, ok.mean()

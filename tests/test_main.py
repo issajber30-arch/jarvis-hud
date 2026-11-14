@@ -258,3 +258,30 @@ async def test_voice_panel_hears_only_the_mic(monkeypatch):
         await app._on_utterance_audio(np.zeros(16000, np.float32))
         await pilot.pause(0.1)
         assert "OPEN SAFARI" in voice.render().plain
+
+
+async def test_boot_freezes_model_objects_out_of_gc(monkeypatch):
+    # Regression: with voice/speech models loaded (~370k objects) each full GC pass froze the HUD and audio ~60 ms.
+    import gc
+    import audio.stt
+    monkeypatch.setattr(audio.stt, "transcribe", lambda a: "")
+    calls = []
+    monkeypatch.setattr(gc, "freeze", lambda: calls.append("freeze"))
+    app = JarvisApp(router=FakeRouter(), brain=FakeBrain(["ok"]), speaker=FakeSpeaker(), listener=FakeListener(),
+                    controller=lambda a, c: None, agenda_fn=list, greet=True)
+    async with app.run_test() as pilot:
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if calls:
+                break
+    assert calls == ["freeze"]
+
+
+async def test_hud_log_is_mirrored_to_a_redacted_file(tmp_path, monkeypatch):
+    import main
+    monkeypatch.setattr(main, "LOG_FILE", tmp_path / "jarvis.log")
+    app, _ = make_app()
+    async with app.run_test():
+        app._hud_log("ROUTE CLAUDE key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789")
+    text = (tmp_path / "jarvis.log").read_text()
+    assert "ROUTE CLAUDE" in text and "abcdefghijklmnop" not in text

@@ -12,6 +12,9 @@ import config
 from contracts import FAST_ROUTE_ACTIONS, FastRouteMatch
 
 _INT = re.compile(r"\d+")
+# App routes need a command word: "what's the weather like" must reach Claude, not open Weather.app.
+_APP_VERBS = re.compile(r"\b(open|launch|start|fire|bring|pull|run|load|kick|switch|get|need|quit|close|exit|"
+                        r"shut|kill|stop|end|terminate|rid|done)\b", re.I)
 # Names the synthetic phrases use; merged with installed apps so stored phrases and queries canonicalise alike.
 COMMON_APPS = ["Safari", "Spotify", "Notes", "Terminal", "Slack", "Calendar", "Messages", "Mail", "Finder", "Photos"]
 _APP_DIRS = [Path("/Applications"), Path("/System/Applications"), Path("/System/Applications/Utilities"),
@@ -86,6 +89,8 @@ class FastRouter:
         score = float(sims[i])
         action = self._actions[i]
         if score < config.ROUTER_THRESHOLD or action not in FAST_ROUTE_ACTIONS:
+            return None
+        if action in ("open_app", "quit_app") and not _APP_VERBS.search(text):
             return None
         args = {}
         for key, tmpl in self._args[i].items():

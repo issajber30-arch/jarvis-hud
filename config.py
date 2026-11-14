@@ -19,7 +19,7 @@ CONFIRM_TIMEOUT_S = 10
 # Models
 WHISPER_MODEL = "mlx-community/whisper-small.en-mlx"
 EMBED_MODEL = "minishlab/potion-base-8M"
-ROUTER_THRESHOLD = 0.80
+ROUTER_THRESHOLD = 0.85     # 93.8% held-out; 0.80 grabbed greetings ("good morning" -> agenda)
 VECTORS_PATH = ROOT / "data" / "command_vectors.npz"
 CLAUDE_MODEL = "claude-haiku-5-5"
 CLAUDE_MAX_TOKENS = 1024

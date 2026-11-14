@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import os
 import re
 import sys
@@ -22,6 +23,7 @@ from hud.voice_widget import VoiceWidget
 from tools import lines
 from tools.redact import redact
 
+LOG_FILE = config.ROOT / "logs" / "jarvis.log"
 _YES = {"yes", "yeah", "yep", "yes please", "confirm", "do it", "go ahead", "affirmative"}
 
 
@@ -103,6 +105,10 @@ class JarvisApp(App):
         import numpy as np
         await asyncio.to_thread(stt.transcribe, np.zeros(config.SAMPLE_RATE, np.float32))  # load Whisper now
         self._status("SPEECH", "ONLINE")
+        # Models leave ~370k long-lived objects; every full GC pass walked them all and froze HUD + audio ~60 ms.
+        # Collect once, then exclude everything alive now from future passes (passes drop to ~3 ms).
+        gc.collect()
+        gc.freeze()
         try:
             await asyncio.to_thread(self.listener.start)
             self._status("MIC", "ONLINE")
@@ -152,7 +158,14 @@ class JarvisApp(App):
             self.query_one(StatusWidget).set("CALENDAR", "OFFLINE")
 
     def _hud_log(self, text: str) -> None:
-        self.query_one(LogWidget).log_line(redact(text))
+        line = redact(text)
+        self.query_one(LogWidget).log_line(line)
+        try:  # local session log for debugging; git-ignored, already redacted
+            LOG_FILE.parent.mkdir(exist_ok=True)
+            with LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {line}\n")
+        except OSError:
+            pass  # logging must never break the HUD
 
     def _ticker(self, text: str) -> None:
         self.query_one(LogWidget).ticker(redact(text))

@@ -70,16 +70,35 @@ class TelemetryWidget(Widget):
 
     def on_mount(self) -> None:
         self.update_frame()
-        self.set_interval(1 / config.TELEMETRY_HZ, self.update_frame)
+        # Reading the system (git subprocess, process scan) took ~33 ms and froze the sphere and audio once a
+        # second when done on the UI thread; gather on a worker thread and only draw here.
+        self.set_interval(1 / config.TELEMETRY_HZ, self._gather_in_background)
 
-    def update_frame(self) -> None:
-        self.frame = self.collect()
-        self._cores = psutil.cpu_percent(percpu=True)
+    def _gather_in_background(self) -> None:
+        self.run_worker(self._gather_thread, thread=True, exclusive=True, group="telemetry")
+
+    def _gather_thread(self) -> None:
+        data = self._gather()
+        self.app.call_from_thread(self._apply, data)
+
+    def _gather(self) -> tuple:
+        frame, cores = self.collect(), psutil.cpu_percent(percpu=True)
+        top = None
+        if time.monotonic() - self._top_t >= TOP_EVERY_S:
+            top, self._top_t = self._top_apps(), time.monotonic()
+        return frame, cores, top
+
+    def _apply(self, data: tuple) -> None:
+        self.frame, self._cores, top = data
         self._cpu_hist.append(self.frame.cpu_pct)
         self._net_hist.append(self.frame.net_up_kbps + self.frame.net_down_kbps)
-        if time.monotonic() - self._top_t >= TOP_EVERY_S:
-            self._top, self._top_t = self._top_apps(), time.monotonic()
+        if top is not None:
+            self._top = top
         self.refresh()
+
+    def update_frame(self) -> None:
+        """Synchronous gather + draw (first paint and tests)."""
+        self._apply(self._gather())
 
     @staticmethod
     def _top_apps(n: int = 5) -> list[tuple[str, float]]:

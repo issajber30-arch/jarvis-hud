@@ -63,3 +63,13 @@ def test_music_is_not_an_app_name():
     # "start some music" must play music, not open Music.app
     from tools.fast_router import installed_apps
     assert "music" not in installed_apps()
+
+
+def test_questions_that_name_apps_go_to_claude(real_vectors_path):
+    # Regression: "what's the weather like" opened Weather.app and "what's the news" opened News.app.
+    apps = {"weather": "Weather", "news": "News", "safari": "Safari"}
+    r = FastRouter(real_vectors_path, apps=apps)
+    for q in ["what's the weather like", "what's the news", "good morning jarvis", "how's the weather in london"]:
+        assert r.route(q) is None, q
+    assert r.route("open the weather app").args == {"app": "Weather"}
+    assert r.route("hey jarvis close news").action == "quit_app"
