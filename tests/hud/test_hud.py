@@ -94,3 +94,36 @@ def test_core_frame_is_cheap():
             list(console.render(w.render()))
         ms = (time.perf_counter() - t) / 20 * 1000
     assert ms < 5, f"core frame took {ms:.1f} ms"
+
+
+def _core_rows(w=120, h=55, state=None):
+    from unittest.mock import PropertyMock, patch
+    from textual.geometry import Size
+    from hud.core_widget import CoreWidget
+    c = CoreWidget()
+    if state is not None:
+        c.state = state
+    with patch.object(CoreWidget, "size", new_callable=PropertyMock, return_value=Size(w, h)):
+        return c.render()
+
+
+def test_core_shows_jarvis_label_in_centre():
+    text = _core_rows()
+    rows = text.plain.splitlines()
+    mid = rows[len(rows) // 2]
+    assert "J A R V I S" in mid
+    col = mid.index("J A R V I S") + len("J A R V I S") // 2
+    assert abs(col - 60) <= 1  # horizontally centred
+
+
+def test_core_globe_is_not_empty():
+    # Baseline sphere lit only 16% of cells in its area ("looks empty"); globe + core must at least double it.
+    rows = _core_rows().plain.splitlines()
+    box = [r[30:90] for r in rows[8:47]]
+    lit = sum(ch != " " for r in box for ch in r) / sum(len(r) for r in box)
+    assert lit >= 0.32, f"only {lit:.0%} lit"
+
+
+def test_core_label_fits_small_widget():
+    text = _core_rows(w=8, h=3)  # narrower than the label: must not crash or overflow
+    assert all(len(r) == 8 for r in text.plain.splitlines())

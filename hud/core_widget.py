@@ -1,4 +1,4 @@
-"""Hero widget: a rotating 3D point-cloud sphere + ring drawn on a Braille canvas."""
+"""Hero widget: a rotating wireframe globe with two orbit rings and a glowing core, drawn on a Braille canvas."""
 from __future__ import annotations
 
 import numpy as np
@@ -16,16 +16,43 @@ _COLORS = {
     HUDState.CONFIRM: config.STARK_AMBER,
     HUDState.ERROR: config.STARK_RED,
 }
+_GLOW = "#E6FBFF"
+LABEL = "J A R V I S"
 
 
-def _cloud(n_sphere: int = 1100, n_ring: int = 260) -> np.ndarray:
-    i = np.arange(n_sphere) + 0.5
-    phi = np.arccos(1 - 2 * i / n_sphere)
-    theta = np.pi * (1 + 5**0.5) * i  # fibonacci sphere
-    sphere = np.stack([np.cos(theta) * np.sin(phi), np.cos(phi), np.sin(theta) * np.sin(phi)], 1)
-    a = np.linspace(0, 2 * np.pi, n_ring, endpoint=False)
-    ring = 1.35 * np.stack([np.cos(a), np.zeros_like(a), np.sin(a)], 1)
-    return np.vstack([sphere, ring])
+def _circle(n: int) -> np.ndarray:
+    a = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    return np.stack([np.cos(a), np.zeros_like(a), np.sin(a)], 1)
+
+
+def _globe(n_lat: int = 7, n_lon: int = 12, per_line: int = 220) -> np.ndarray:
+    """Latitude circles + meridians on the unit sphere."""
+    c = _circle(per_line)
+    lats = [c * np.cos(t) + [0, np.sin(t), 0] for t in np.linspace(-np.pi / 2, np.pi / 2, n_lat + 2)[1:-1]]
+    t = np.linspace(0, 2 * np.pi, per_line, endpoint=False)
+    lons = [np.stack([np.cos(t) * np.cos(p), np.sin(t), np.cos(t) * np.sin(p)], 1)
+            for p in np.linspace(0, np.pi, n_lon, endpoint=False)]
+    return np.vstack(lats + lons)
+
+
+def _orbit(radius: float, n: int = 420, dash: int = 14) -> np.ndarray:
+    """A dashed ring in the xz plane; dashes make its spin visible."""
+    pts = radius * _circle(n)
+    return pts[(np.arange(n) // dash) % 3 != 2]
+
+
+def _core(n: int = 900, radius: float = 0.24) -> np.ndarray:
+    """A solid ball: fibonacci points on several nested shells."""
+    i = np.arange(n) + 0.5
+    phi, theta = np.arccos(1 - 2 * i / n), np.pi * (1 + 5**0.5) * i
+    shell = np.stack([np.cos(theta) * np.sin(phi), np.cos(phi), np.sin(theta) * np.sin(phi)], 1)
+    r = radius * np.sqrt((np.arange(n) % 4 + 1) / 4)[:, None]
+    return shell * r
+
+
+def _cloud() -> np.ndarray:
+    """Kept for callers/tests that want a plain point cloud: the globe."""
+    return _globe()
 
 
 def _bits(points: np.ndarray, w: int, h: int, scale: float = 1.0) -> np.ndarray:
@@ -34,7 +61,7 @@ def _bits(points: np.ndarray, w: int, h: int, scale: float = 1.0) -> np.ndarray:
     if len(points) == 0 or w < 1 or h < 1:
         return out
     px, py = 2 * w, 4 * h
-    s = min(px, py) / 2 * 0.9 * scale
+    s = min(px, py) / 2 * 0.72 * scale  # leaves room for the orbit rings
     x = np.round(px / 2 + points[:, 0] * s).astype(int)
     y = np.round(py / 2 - points[:, 1] * s).astype(int)
     ok = (x >= 0) & (x < px) & (y >= 0) & (y < py)
@@ -54,11 +81,16 @@ def render_braille(points: np.ndarray, w: int, h: int) -> list[str]:
     return _chars(_bits(points, w, h))
 
 
-def _rot(ay: float, ax: float) -> np.ndarray:
-    cy, sy, cx, sx = np.cos(ay), np.sin(ay), np.cos(ax), np.sin(ax)
+def _rot(ay: float, ax: float, az: float = 0.0) -> np.ndarray:
+    cy, sy, cx, sx, cz, sz = np.cos(ay), np.sin(ay), np.cos(ax), np.sin(ax), np.cos(az), np.sin(az)
     ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
     rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
-    return rx @ ry
+    rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+    return rz @ rx @ ry
+
+
+# Cell layers, painted in increasing priority.
+_DIM, _BRIGHT, _CORE, _TEXT = 1, 2, 3, 4
 
 
 class CoreWidget(Widget):
@@ -69,7 +101,9 @@ class CoreWidget(Widget):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._pts = _cloud()  # precomputed once
+        self._globe = _globe()  # precomputed once
+        self._orbit_a, self._orbit_b = _orbit(1.32), _orbit(1.22)
+        self._core = _core()
         self._angle = 0.0
         self._omega = self.BASE_OMEGA
         self._rms = 0.0
@@ -94,27 +128,45 @@ class CoreWidget(Widget):
         self._rms *= np.exp(-3.0 * dt)  # level decays if no new frames arrive
         self.refresh()
 
+    def _layers(self, w: int, h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Braille bits and per-cell layer index for one frame."""
+        a = self._angle
+        globe = self._globe @ _rot(a, 0.35).T
+        rings = np.vstack([self._orbit_a @ _rot(a * 1.7, 1.15, 0.30).T,
+                           self._orbit_b @ _rot(-a * 1.2, 1.25, -0.55).T])
+        front = np.vstack([globe[globe[:, 2] > 0], rings[rings[:, 2] > 0]])
+        back = np.vstack([globe[globe[:, 2] <= 0][::2], rings[rings[:, 2] <= 0][::2]])  # sparser back half
+        glow = 1 + 0.9 * self._pulse + 0.5 * self._rms  # core breathes with either voice
+        core = self._core @ _rot(-a * 2.0, 0.6).T * glow
+        b_back, b_front, b_core = _bits(back, w, h), _bits(front, w, h), _bits(core, w, h)
+        layer = np.where(b_core > 0, _CORE, np.where(b_front > 0, _BRIGHT, np.where(b_back > 0, _DIM, 0)))
+        return b_back | b_front | b_core, layer
+
     def render(self) -> Text:
         w, h = max(self.size.width, 1), max(self.size.height, 1)
-        p = self._pts @ _rot(self._angle, 0.45).T
-        p[:, :2] *= 1 + 0.18 * self._pulse
-        near = _bits(p[p[:, 2] > 0], w, h)
-        far = _bits(p[p[:, 2] <= 0][::2], w, h)  # sparser, dimmer back half
+        bits, layer = self._layers(w, h)
+        rows = _chars(bits)
+        label = f" {LABEL} "
+        if len(label) <= w:  # stamp the name on the centre row, padded so it reads over the core
+            mid, x0 = h // 2, (w - len(label)) // 2
+            rows[mid] = rows[mid][:x0] + label + rows[mid][x0 + len(label):]
+            layer[mid, x0:x0 + len(label)] = _TEXT
+
         bright = _COLORS.get(self.state, config.STARK_CYAN)
         if self.state is HUDState.SPEAKING:
             bright = "#BFF0FF"
-        dim = config.STARK_DIM
+        styles = {_DIM: config.STARK_DIM, _BRIGHT: bright, _CORE: _GLOW, _TEXT: f"bold {_GLOW}"}
         out = Text(no_wrap=True)
-        for ny, fy in zip(_chars(near), _chars(far | near)):
-            # one span per colour run instead of per character; blanks join the current run (no visible colour)
-            row, style = [], None
-            for n, f in zip(ny, fy):
-                s = bright if n != " " else dim if f != " " else style
-                if s != style and row:
-                    out.append("".join(row), style=style)
-                    row = []
+        for text_row, layer_row in zip(rows, layer.tolist()):
+            # one span per style run; blank cells join the current run (they show no colour)
+            run, style = [], None
+            for ch, li in zip(text_row, layer_row):
+                s = styles[li] if li else style
+                if s != style and run:
+                    out.append("".join(run), style=style)
+                    run = []
                 style = s
-                row.append(f)
-            out.append("".join(row), style=style)
+                run.append(ch)
+            out.append("".join(run), style=style)
             out.append("\n")
         return out
