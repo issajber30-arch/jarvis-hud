@@ -1,4 +1,5 @@
-"""Hero widget: a rotating wireframe globe with two orbit rings and a glowing core, drawn on a Braille canvas."""
+"""Hero widget: a holographic data sphere — nested shells of broken arcs, data shards and a swirling core —
+drawn on a Braille canvas. Original design in the holographic-HUD genre; no film assets."""
 from __future__ import annotations
 
 import numpy as np
@@ -13,47 +14,71 @@ from contracts import AudioTelemetryFrame, HUDState
 _BIT = np.array([[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]], dtype=np.uint8)
 
 _COLORS = {
-    HUDState.CONFIRM: config.STARK_AMBER,
-    HUDState.ERROR: config.STARK_RED,
+    HUDState.CONFIRM: config.HUD_CONFIRM,
+    HUDState.ERROR: config.HUD_ERROR,
 }
-_GLOW = "#E6FBFF"
 LABEL = "J A R V I S"
+_DOTS_PER_UNIT = 130  # samples per unit length: keeps lines <=1 screen dot apart up to ~240x70 cells
+_SHELL_RADII = np.linspace(0.50, 1.32, 8)  # outer shell uses the room the old orbit rings had
+_SHELL_SPIN = np.array([0.6, -0.9, 1.2, -0.5, 0.8, -1.1, 0.45, -0.7])  # layers turn at different speeds
+_SHELL_TILT = np.array([0.30, 0.85, -0.40, 1.10, 0.15, -0.95, 0.60, -0.20])
 
 
-def _circle(n: int) -> np.ndarray:
-    a = np.linspace(0, 2 * np.pi, n, endpoint=False)
-    return np.stack([np.cos(a), np.zeros_like(a), np.sin(a)], 1)
+def _samples(length: float) -> int:
+    return max(2, int(np.ceil(length * _DOTS_PER_UNIT)) + 1)
 
 
-# Sample counts keep neighbouring points <=1 screen dot apart at full-screen size, so lines draw solid.
-def _globe(n_lat: int = 7, n_lon: int = 12, per_line: int = 600) -> np.ndarray:
-    """Latitude circles + meridians on the unit sphere."""
-    c = _circle(per_line)
-    lats = [c * np.cos(t) + [0, np.sin(t), 0] for t in np.linspace(-np.pi / 2, np.pi / 2, n_lat + 2)[1:-1]]
-    t = np.linspace(0, 2 * np.pi, per_line, endpoint=False)
-    lons = [np.stack([np.cos(t) * np.cos(p), np.sin(t), np.cos(t) * np.sin(p)], 1)
-            for p in np.linspace(0, np.pi, n_lon, endpoint=False)]
-    return np.vstack(lats + lons)
+def _basis(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Two orthonormal vectors spanning a random great circle."""
+    n = rng.normal(size=3)
+    n /= np.linalg.norm(n)
+    u = np.cross(n, [0.0, 1.0, 0.0] if abs(n[1]) < 0.9 else [1.0, 0.0, 0.0])
+    u /= np.linalg.norm(u)
+    return u, np.cross(n, u)
 
 
-def _orbit(radius: float, n: int = 900, dash: int = 30) -> np.ndarray:
-    """A dashed ring in the xz plane; dashes make its spin visible."""
-    pts = radius * _circle(n)
-    return pts[(np.arange(n) // dash) % 3 != 2]
+def _arc(rng: np.random.Generator, radius: float) -> np.ndarray:
+    u, v = _basis(rng)
+    start, span = rng.uniform(0, 2 * np.pi), rng.uniform(0.25, 1.5)
+    t = np.linspace(start, start + span, _samples(span * radius))
+    return radius * (np.outer(np.cos(t), u) + np.outer(np.sin(t), v))
 
 
-def _core(n: int = 900, radius: float = 0.24) -> np.ndarray:
-    """A solid ball: fibonacci points on several nested shells."""
+def _shard(rng: np.random.Generator, radius: float) -> np.ndarray:
+    """A short radial segment: reads as a data fragment between shells."""
+    d = rng.normal(size=3)
+    d /= np.linalg.norm(d)
+    length = rng.uniform(0.05, 0.14)
+    return np.outer(np.linspace(radius, radius + length, _samples(length)), d)
+
+
+def _data_sphere(seed: int = 7) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """Per-shell point arrays, plus every individual line (for continuity checks)."""
+    rng = np.random.default_rng(seed)  # fixed layout: the same sphere every launch
+    shells, lines = [], []
+    for r in _SHELL_RADII:
+        parts = [_arc(rng, r) for _ in range(int(8 + 14 * r))]
+        parts += [_shard(rng, r) for _ in range(int(4 + 6 * r))]
+        lines += parts
+        shells.append(np.vstack(parts))
+    return shells, lines
+
+
+def _core(n: int = 700, radius: float = 0.2) -> np.ndarray:
+    """Dense inner ball plus a two-armed spiral: the bright swirling heart."""
     i = np.arange(n) + 0.5
     phi, theta = np.arccos(1 - 2 * i / n), np.pi * (1 + 5**0.5) * i
-    shell = np.stack([np.cos(theta) * np.sin(phi), np.cos(phi), np.sin(theta) * np.sin(phi)], 1)
-    r = radius * np.sqrt((np.arange(n) % 4 + 1) / 4)[:, None]
-    return shell * r
+    ball = np.stack([np.cos(theta) * np.sin(phi), np.cos(phi), np.sin(theta) * np.sin(phi)], 1)
+    ball *= radius * 0.6 * np.sqrt((np.arange(n) % 4 + 1) / 4)[:, None]
+    t = np.linspace(0, 3 * np.pi, _samples(3 * np.pi * radius))
+    rr = radius * (0.25 + 0.75 * t / t[-1])
+    arms = [np.stack([rr * np.cos(t + k), 0.15 * rr * np.sin(2 * t), rr * np.sin(t + k)], 1) for k in (0, np.pi)]
+    return np.vstack([ball] + arms)
 
 
 def _cloud() -> np.ndarray:
-    """Kept for callers/tests that want a plain point cloud: the globe."""
-    return _globe()
+    """All shells as one point cloud."""
+    return np.vstack(_data_sphere()[0])
 
 
 def _bits(points: np.ndarray, w: int, h: int, scale: float = 1.0) -> np.ndarray:
@@ -102,8 +127,7 @@ class CoreWidget(Widget):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._globe = _globe()  # precomputed once
-        self._orbit_a, self._orbit_b = _orbit(1.32), _orbit(1.22)
+        self._shells, self._arcs = _data_sphere()  # precomputed once
         self._core = _core()
         self._angle = 0.0
         self._omega = self.BASE_OMEGA
@@ -132,11 +156,9 @@ class CoreWidget(Widget):
     def _layers(self, w: int, h: int) -> tuple[np.ndarray, np.ndarray]:
         """Braille bits and per-cell layer index for one frame."""
         a = self._angle
-        globe = self._globe @ _rot(a, 0.35).T
-        rings = np.vstack([self._orbit_a @ _rot(a * 1.7, 1.15, 0.30).T,
-                           self._orbit_b @ _rot(-a * 1.2, 1.25, -0.55).T])
-        front = np.vstack([globe[globe[:, 2] > 0], rings[rings[:, 2] > 0]])
-        back = np.vstack([globe[globe[:, 2] <= 0][::2], rings[rings[:, 2] <= 0][::2]])  # sparser back half
+        shells = np.vstack([pts @ _rot(a * spin, tilt, 0.2 * i).T
+                            for i, (pts, spin, tilt) in enumerate(zip(self._shells, _SHELL_SPIN, _SHELL_TILT))])
+        front, back = shells[shells[:, 2] > 0], shells[shells[:, 2] <= 0][::2]  # sparser, dimmer back half
         glow = 1 + 0.9 * self._pulse + 0.5 * self._rms  # core breathes with either voice
         core = self._core @ _rot(-a * 2.0, 0.6).T * glow
         b_back, b_front, b_core = _bits(back, w, h), _bits(front, w, h), _bits(core, w, h)
@@ -153,10 +175,10 @@ class CoreWidget(Widget):
             rows[mid] = rows[mid][:x0] + label + rows[mid][x0 + len(label):]
             layer[mid, x0:x0 + len(label)] = _TEXT
 
-        bright = _COLORS.get(self.state, config.STARK_CYAN)
+        bright = _COLORS.get(self.state, config.HUD_PRIMARY)
         if self.state is HUDState.SPEAKING:
-            bright = "#BFF0FF"
-        styles = {_DIM: config.STARK_DIM, _BRIGHT: bright, _CORE: _GLOW, _TEXT: f"bold {_GLOW}"}
+            bright = config.HUD_SPEAKING
+        styles = {_DIM: config.HUD_DIM, _BRIGHT: bright, _CORE: config.HUD_GLOW, _TEXT: f"bold {config.HUD_GLOW}"}
         out = Text(no_wrap=True)
         for text_row, layer_row in zip(rows, layer.tolist()):
             # one span per style run; blank cells join the current run (they show no colour)

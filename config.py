@@ -34,9 +34,11 @@ HUD_FPS = 30               # terminals cannot show more; 60 doubled CPU for noth
 TELEMETRY_HZ = 1
 LOG_MAX_CHARS = 200
 
-# Stark palette
-STARK_CYAN = "#4FD1FF"
-STARK_DIM = "#1B4F63"
-STARK_AMBER = "#FFB547"
-STARK_RED = "#FF4D4D"
-STARK_BG = "#05080C"
+# Palette (gold holographic). Roles, not hues, so a re-theme is one edit here plus hud/jarvis.tcss.
+HUD_PRIMARY = "#FFB23F"   # gold lines and text
+HUD_DIM = "#6B3F0E"       # back faces, borders, faded text
+HUD_GLOW = "#FFF0C8"      # core and label
+HUD_SPEAKING = "#FFD98A"  # brighter gold while Jarvis talks
+HUD_CONFIRM = "#9FE8FF"   # cool white-cyan: stands out against gold when awaiting a yes/no
+HUD_ERROR = "#FF4D4D"
+HUD_BG = "#070503"

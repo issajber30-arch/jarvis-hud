@@ -34,12 +34,12 @@ class TickerWidget(Widget):
         age = time.monotonic() - self._t0
         if not self.text or age >= FADE_S:
             return Text("")
-        style = config.STARK_CYAN if age < FADE_S / 2 else config.STARK_DIM
+        style = config.HUD_PRIMARY if age < FADE_S / 2 else config.HUD_DIM
         return Text("▸ " + self.text, style=style, no_wrap=True, overflow="ellipsis")
 
 
 class LogWidget(Widget):
-    DEFAULT_CSS = "LogWidget { border: round #1B4F63; padding: 0 1; }"
+    DEFAULT_CSS = "LogWidget { border: round #6B3F0E; padding: 0 1; }"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -64,5 +64,5 @@ class LogWidget(Widget):
         for i, line in enumerate(list(self.lines)[-h:]):
             if i:
                 out.append("\n")
-            out.append(line[:w], style=config.STARK_CYAN)
+            out.append(line[:w], style=config.HUD_PRIMARY)
         return out

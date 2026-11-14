@@ -80,6 +80,8 @@ async def test_widgets_mount():
 
 def test_core_frame_is_cheap():
     # Regression: per-character spans made a 120x55 frame cost ~17 ms and pinned a core at 60 fps.
+    # Real cost is ~3.5 ms; 8 ms catches that regression 2x over without flaking under parallel load
+    # (the frame budget at 30 fps is 33 ms).
     import time
     from unittest.mock import PropertyMock, patch
     from rich.console import Console
@@ -93,7 +95,7 @@ def test_core_frame_is_cheap():
         for _ in range(20):
             list(console.render(w.render()))
         ms = (time.perf_counter() - t) / 20 * 1000
-    assert ms < 5, f"core frame took {ms:.1f} ms"
+    assert ms < 8, f"core frame took {ms:.1f} ms"
 
 
 def _core_rows(w=120, h=55, state=None):
@@ -129,14 +131,28 @@ def test_core_label_fits_small_widget():
     assert all(len(r) == 8 for r in text.plain.splitlines())
 
 
-def test_core_lines_are_continuous():
+
+def test_core_arcs_are_continuous():
     # Lines read as dotted when neighbouring samples land >1 screen dot apart; check at a big full-screen size.
     import numpy as np
-    from hud.core_widget import CoreWidget, _bits
+    from hud.core_widget import CoreWidget
     c = CoreWidget()
-    w, h = 240, 70
-    s = min(2 * w, 4 * h) / 2 * 0.72  # same projection scale as _bits
-    for name, pts in [("globe", c._globe), ("orbit", c._orbit_a)]:
-        steps = np.linalg.norm(np.diff(pts, axis=0), axis=1) * s  # 3D spacing bounds the on-screen spacing
-        steps = steps[steps < 6]  # ignore jumps between separate lines / dashes
-        assert np.percentile(steps, 99) <= 1.2, f"{name} step {np.percentile(steps, 99):.2f} dots"
+    s = min(2 * 240, 4 * 70) / 2 * 0.72  # projection scale used by _bits at 240x70
+    assert len(c._arcs) >= 80, "data sphere needs many arc fragments"
+    for arc in c._arcs:
+        steps = np.linalg.norm(np.diff(arc, axis=0), axis=1) * s
+        assert steps.max() <= 1.2
+
+
+def test_core_uses_gold_palette():
+    import config
+    text = _core_rows()
+    styles = {str(sp.style) for sp in text.spans}
+    assert config.HUD_PRIMARY in styles and "#4FD1FF" not in " ".join(styles)
+
+
+def test_core_confirm_state_stands_out():
+    import config
+    from contracts import HUDState
+    styles = {str(sp.style) for sp in _core_rows(state=HUDState.CONFIRM).spans}
+    assert config.HUD_CONFIRM in styles

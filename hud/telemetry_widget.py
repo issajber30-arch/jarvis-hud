@@ -18,7 +18,7 @@ def _bar(pct: float, width: int = 14) -> str:
 
 
 class TelemetryWidget(Widget):
-    DEFAULT_CSS = "TelemetryWidget { border: round #1B4F63; padding: 0 1; }"
+    DEFAULT_CSS = "TelemetryWidget { border: round #6B3F0E; padding: 0 1; }"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -67,14 +67,14 @@ class TelemetryWidget(Widget):
         t = Text(no_wrap=True)
         if f is None:
             return t
-        cyan, dim = config.STARK_CYAN, config.STARK_DIM
+        cyan, dim = config.HUD_PRIMARY, config.HUD_DIM
         rows = [("SYS.CPU", f.cpu_pct), ("SYS.RAM", f.ram_pct)]
         if f.battery_pct is not None:
             rows.append(("PWR" + ("+" if f.charging else " "), f.battery_pct))
         for label, pct in rows:
             warn = pct > 90 or (label.startswith("PWR") and pct < 15 and not f.charging)
             t.append(f"{label:<8}", style=dim)
-            t.append(_bar(pct), style=config.STARK_RED if warn else cyan)
+            t.append(_bar(pct), style=config.HUD_ERROR if warn else cyan)
             t.append(f" {pct:3.0f}%\n", style=cyan)
         if f.battery_pct is None:
             t.append("PWR     AC\n", style=dim)
