@@ -74,7 +74,12 @@ def agenda_today() -> list[dict]:
     rcals = [c for c in store.calendarsForEntityType_(_REMINDERS) if _wanted(c)]
     got, done = [], threading.Event()
     pred = store.predicateForIncompleteRemindersWithDueDateStarting_ending_calendars_(_ns(start), _ns(end), rcals)
-    store.fetchRemindersMatchingPredicate_completion_(pred, lambda r: (got.extend(r or []), done.set()))
+
+    def on_reminders(r) -> None:  # must return None: PyObjC aborts the process on a non-void block return
+        got.extend(r or [])
+        done.set()
+
+    store.fetchRemindersMatchingPredicate_completion_(pred, on_reminders)
     done.wait(_TIMEOUT)
     for r in got:
         due = _due(r.dueDateComponents())

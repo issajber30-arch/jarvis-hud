@@ -39,7 +39,9 @@ class FakeStore:
     def predicateForEventsWithStartDate_endDate_calendars_(self, s, e, cals): return ("ev", cals)
     def eventsMatchingPredicate_(self, p): return [e for e in self.events if e.calendar() in p[1]]
     def predicateForIncompleteRemindersWithDueDateStarting_ending_calendars_(self, s, e, c): return ("rem", c)
-    def fetchRemindersMatchingPredicate_completion_(self, p, cb): cb(self.reminders)
+    def fetchRemindersMatchingPredicate_completion_(self, p, cb):
+        # PyObjC aborts the process if a void completion block returns a value — enforce it like macOS does
+        assert cb(self.reminders) is None, "EventKit completion must return None"
 
 
 def test_agenda_today_filters(monkeypatch):
