@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import sys
 from datetime import datetime
 
 from textual.app import App, ComposeResult
@@ -286,6 +287,26 @@ def prepare_runtime() -> None:
     resource_tracker.ensure_running()
 
 
+class _Silent:
+    """Stands in for mic, speaker and router in --hud-only mode: every call is a no-op."""
+    is_speaking = False
+
+    def __getattr__(self, name):
+        return lambda *args, **kwargs: None
+
+    async def speak(self, sentences) -> bool:
+        return True
+
+
+def hud_only_app() -> JarvisApp:
+    """The display alone: no microphone, voice, models or API calls."""
+    silent = _Silent()
+    app = JarvisApp(router=silent, speaker=silent, listener=silent, brain=silent,
+                    controller=lambda a, c: None, agenda_fn=list, greet=False)
+    app.call_after_refresh(app._hud_log, "HUD-ONLY MODE · NO MIC OR VOICE")
+    return app
+
+
 if __name__ == "__main__":
     prepare_runtime()
-    JarvisApp().run()
+    (hud_only_app() if "--hud-only" in sys.argv else JarvisApp()).run()

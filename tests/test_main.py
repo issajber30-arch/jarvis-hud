@@ -203,3 +203,13 @@ async def test_boot_warms_speech_recognition(monkeypatch):
             if calls:
                 break
     assert calls, "speech recognition was not warmed at boot"
+
+
+async def test_hud_only_mode_boots_without_audio_or_models():
+    from main import hud_only_app
+    app = hud_only_app()
+    async with app.run_test() as pilot:
+        await pilot.pause(0.3)
+        await pilot.press("space")  # talk key must be harmless with no mic
+        assert app.query_one("CoreWidget") is not None
+        assert "HUD-ONLY" in " ".join(app.query_one("LogWidget").lines)
