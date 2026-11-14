@@ -52,6 +52,8 @@ class JarvisApp(App):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._warned: set[str] = set()
         self._cpu_hot_s = 0
+        from audio.chime import play_chime
+        self.chime = play_chime  # tests swap it; hud-only sets None
 
     def compose(self) -> ComposeResult:
         yield TelemetryWidget()
@@ -197,6 +199,8 @@ class JarvisApp(App):
             self.speaker.stop()
             self._hud_log("BARGE-IN")
         elif ev.kind in ("wake", "ptt_start"):
+            if self.chime:
+                self.chime()
             self._set_state(HUDState.LISTENING)
             self._hud_log("WAKE DETECTED" if ev.kind == "wake" else "PTT OPEN")
         elif ev.kind == "utterance" and ev.audio is not None:
@@ -404,6 +408,7 @@ def hud_only_app() -> JarvisApp:
     silent = _Silent()
     app = JarvisApp(router=silent, speaker=silent, listener=silent, brain=silent,
                     controller=lambda a, c: None, agenda_fn=list, greet=False)
+    app.chime = None
     def label() -> None:
         app.query_one(StatusWidget).mode = "HUD-ONLY"
         app.query_one(VoiceWidget).mic_off("HUD-ONLY MODE")
