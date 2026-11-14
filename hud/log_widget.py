@@ -24,7 +24,12 @@ class TickerWidget(Widget):
         self._t0 = 0.0
 
     def on_mount(self) -> None:
-        self.set_interval(0.1, self.refresh)
+        self.set_interval(0.1, self._repaint_if_fading)
+
+    def _repaint_if_fading(self) -> None:
+        # Only repaint while text is on screen or just finished fading (one last clear).
+        if self.text and time.monotonic() - self._t0 < FADE_S + 0.2:
+            self.refresh()
 
     def say(self, text: str) -> None:
         self.text, self._t0 = text[: config.LOG_MAX_CHARS], time.monotonic()

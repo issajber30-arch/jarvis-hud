@@ -90,6 +90,7 @@ class JarvisApp(App):
 
     async def _boot(self) -> None:
         # Heavy models load off the UI thread; greet once the voice is warm.
+        self.query_one(CoreWidget).set_boot_progress(0.15)
         self._status("BRAIN", "ONLINE" if os.environ.get("ANTHROPIC_API_KEY") else "OFFLINE")
         self._status("ROUTER", "LOADING")
         if self.router is None:
@@ -118,6 +119,7 @@ class JarvisApp(App):
             self._status("MIC", "OFFLINE")
             self._hud_log(f"MIC OFFLINE {type(e).__name__}")
         await self._refresh_agenda()
+        self.query_one(CoreWidget).set_boot_progress(1.0)  # whatever failed is shown in STATUS; sphere completes
         self.set_interval(300, self._refresh_agenda)
         h = datetime.now().hour
         await self._say([lines.pick("greeting_morning" if h < 12 else "greeting_afternoon" if h < 18
@@ -144,7 +146,11 @@ class JarvisApp(App):
         self.query_one(StatusWidget).state = state.name
 
     def _status(self, module: str, state: str) -> None:
-        self.query_one(StatusWidget).set(module, state)
+        status = self.query_one(StatusWidget)
+        status.set(module, state)
+        # The sphere assembles shell by shell as modules come online (boot only; live default is complete).
+        online = sum(v == "ONLINE" for v in status.modules.values())
+        self.query_one(CoreWidget).set_boot_progress(0.15 + 0.85 * online / len(status.modules))
         if state in ("ONLINE", "OFFLINE"):
             self._hud_log(f"{module} {state}")
 
@@ -169,6 +175,16 @@ class JarvisApp(App):
 
     def _ticker(self, text: str) -> None:
         self.query_one(LogWidget).ticker(redact(text))
+
+    def on_resize(self, event) -> None:
+        # Narrow windows drop rails instead of squashing everything: <140 cols loses SYS, <100 loses the right rail.
+        w = event.size.width
+        left, right = self.query_one(TelemetryWidget), self.query_one("#right")
+        left.display, right.display = w >= 140, w >= 100
+        cols = (["36"] if left.display else []) + ["1fr"] + (["42"] if right.display else [])
+        self.screen.styles.grid_size_columns = len(cols)
+        self.screen.styles.grid_columns = " ".join(cols)
+        self.query_one(TickerWidget).styles.column_span = len(cols)
 
     # ---------- listener events ----------
     def _on_listener_event(self, ev: ListenerEvent) -> None:

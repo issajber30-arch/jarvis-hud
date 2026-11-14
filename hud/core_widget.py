@@ -2,6 +2,8 @@
 drawn in shimmering binary digits. Original design in the holographic-HUD genre; no film assets."""
 from __future__ import annotations
 
+import time
+
 import numpy as np
 from rich.text import Text
 from textual.reactive import reactive
@@ -20,7 +22,7 @@ _COLORS = {
 LABEL = "J A R V I S"
 _DOTS_PER_UNIT = 130  # samples per unit length: keeps lines <=1 screen dot apart up to ~240x70 cells
 _SHELL_RADII = np.linspace(0.50, 1.32, 8)  # outer shell uses the room the old orbit rings had
-_SHELL_SPIN = np.array([0.6, -0.9, 1.2, -0.5, 0.8, -1.1, 0.45, -0.7])  # layers turn at different speeds
+_SHELL_SPIN = np.array([0.6, 0.9, 0.45, 1.1, 0.7, 0.5, 0.8, 0.4])  # all drift right, each at its own pace
 _SHELL_TILT = np.array([0.30, 0.85, -0.40, 1.10, 0.15, -0.95, 0.60, -0.20])
 
 
@@ -119,8 +121,29 @@ def _rot(ay: float, ax: float, az: float = 0.0) -> np.ndarray:
 _DIM, _BRIGHT, _CORE, _TEXT = 1, 2, 3, 4
 
 
+_BPM = {HUDState.IDLE: 60, HUDState.LISTENING: 72, HUDState.FOLLOWUP: 72, HUDState.THINKING: 88,
+        HUDState.SPEAKING: 66, HUDState.CONFIRM: 92, HUDState.ERROR: 110}
+_BEAT_W = 0.07  # pulse width as a fraction of one beat; wide enough to look smooth at 30 fps
+
+
+def heartbeat(phase) -> np.ndarray:
+    """Lub-dub over one beat (phase 0..1): a strong pulse, a softer one, then rest."""
+    p = np.asarray(phase, dtype=float)
+
+    def pulse(centre: float, amp: float) -> np.ndarray:
+        d = (p - centre + 0.5) % 1.0 - 0.5  # wrap so the beat is seamless across phase 1 -> 0
+        return amp * np.exp(-(d / _BEAT_W) ** 2)
+
+    return pulse(0.05, 1.0) + pulse(0.29, 0.6)
+
+
+def _glide(cur: float, target: float, rate: float, dt: float) -> float:
+    """Frame-rate independent easing: every parameter change is a glide, never a jump."""
+    return cur + (target - cur) * (1 - np.exp(-rate * dt))
+
+
 class CoreWidget(Widget):
-    DEFAULT_CSS = "CoreWidget { background: #05080C; }"
+    DEFAULT_CSS = "CoreWidget { background: #070503; }"
     state: reactive[HUDState] = reactive(HUDState.IDLE)
 
     BASE_OMEGA = 0.35  # rad/s at rest
@@ -133,19 +156,60 @@ class CoreWidget(Widget):
         self._omega = self.BASE_OMEGA
         self._rms = 0.0
         self._pulse = 0.0
-        self._digits = np.zeros((0, 0), dtype='<U1')  # per-cell 0/1, resized on demand
+        self._digits = np.zeros((0, 0), dtype="<U1")  # per-cell 0/1, resized on demand
         self._rng = np.random.default_rng()
+        self._beat = 0.0           # heartbeat phase, 0..1
+        self._scale = 1.0          # eased shell scale (listening pulls the shells in)
+        self._burst = 0.0          # error burst, decays to 0
+        self._fft = np.zeros(64, np.float32)
+        self._since = 0.0          # time since last drawn frame
+        self._state_t0 = time.monotonic()
+        self._last_state = HUDState.IDLE
+        self._visible = len(self._shells)
+        # Directions and steps for the listening voice ring (radial spectrum ticks), built once.
+        a = np.linspace(0, 2 * np.pi, 128, endpoint=False)
+        self._ring_dirs = np.stack([np.cos(a), np.zeros_like(a), np.sin(a)], 1)
+        self._ring_t = np.linspace(0, 1, 34)
+        self._ring_amp_index = np.abs(np.linspace(-1, 1, 128, endpoint=False)) * 63  # mirror 64 bins around
+
+    # ---- public knobs -------------------------------------------------------------------------------
+    @property
+    def bpm(self) -> int:
+        return _BPM.get(self.state, 60)
+
+    @property
+    def target_fps(self) -> int:
+        # Always full rate: the heartbeat pulse visibly steps at 15 fps (owner chose smooth over battery).
+        return config.HUD_FPS
+
+    @property
+    def shell_scale(self) -> float:
+        return self._scale * (1 + 0.4 * self._burst)
+
+    def set_boot_progress(self, fraction: float) -> None:
+        self._visible = max(1, int(np.ceil(np.clip(fraction, 0, 1) * len(self._shells))))
+        self.refresh()
 
     def on_mount(self) -> None:
         self.set_interval(1 / config.HUD_FPS, lambda: self.tick(1 / config.HUD_FPS))
 
     def push_audio(self, frame: AudioTelemetryFrame) -> None:
         self._rms = float(np.clip(frame.rms, 0.0, 1.0))
+        self._fft = 0.5 * self._fft + 0.5 * np.asarray(frame.fft, np.float32)
 
     def watch_state(self, *_: object) -> None:
+        self._on_state_change()
         self.refresh()
 
+    def _on_state_change(self) -> None:
+        if self.state is not self._last_state:
+            self._last_state, self._state_t0 = self.state, time.monotonic()
+            if self.state is HUDState.ERROR:
+                self._burst = 1.0
+
+    # ---- animation clock ----------------------------------------------------------------------------
     def tick(self, dt: float) -> None:
+        self._on_state_change()
         target = self.BASE_OMEGA + 4.0 * self._rms
         k = 1 - np.exp(-(8.0 if target > self._omega else 1.5) * dt)  # fast attack, slow decay
         self._omega += (target - self._omega) * k
@@ -153,25 +217,64 @@ class CoreWidget(Widget):
         amp = self._rms if self.state is HUDState.SPEAKING else 0.0
         self._pulse += (amp - self._pulse) * (1 - np.exp(-12.0 * dt))
         self._rms *= np.exp(-3.0 * dt)  # level decays if no new frames arrive
-        self.refresh()
+        self._fft *= np.exp(-4.0 * dt)
+        self._beat = (self._beat + dt * self.bpm / 60) % 1.0  # phase carries over when the rate changes
+        listening = self.state in (HUDState.LISTENING, HUDState.FOLLOWUP)
+        target = 0.9 if listening else 0.82 if self.state is HUDState.CONFIRM else 1.0  # make room for rings
+        self._scale = _glide(self._scale, target, 3.0, dt)
+        self._burst *= np.exp(-3.0 * dt)
+        self._since += dt
+        if self._since >= 1 / self.target_fps - 1e-6:
+            self._since = 0.0
+            self.refresh()
+
+    # ---- geometry -----------------------------------------------------------------------------------
+    def _voice_ring(self) -> np.ndarray:
+        """Radial spectrum ticks on a ring round the sphere: your voice, live, while listening."""
+        amp = np.interp(self._ring_amp_index, np.arange(64), self._fft)
+        r = 1.22 + 0.22 * self._ring_t  # just outside the pulled-in shells, so it reads as its own ring
+        pts = self._ring_dirs[:, None, :] * r[None, :, None]
+        keep = self._ring_t[None, :] <= amp[:, None] * 1.0
+        return pts[keep] @ _rot(self._angle * 0.5, 1.15).T
+
+    def _confirm_ring(self) -> np.ndarray:
+        """An arc that drains clockwise over the confirmation window."""
+        frac = float(np.clip(1 - (time.monotonic() - self._state_t0) / config.CONFIRM_TIMEOUT_S, 0, 1))
+        if frac <= 0:
+            return np.zeros((0, 3))
+        th = np.pi / 2 - np.linspace(0, 2 * np.pi * frac, _samples(2 * np.pi * 1.3 * frac))
+        return np.stack([1.3 * np.cos(th), 1.3 * np.sin(th), np.full_like(th, 0.5)], 1)
 
     def _layers(self, w: int, h: int) -> tuple[np.ndarray, np.ndarray]:
         """Braille bits and per-cell layer index for one frame."""
         a = self._angle
+        hb = float(heartbeat(self._beat))
         shells = np.vstack([pts @ _rot(a * spin, tilt, 0.2 * i).T
-                            for i, (pts, spin, tilt) in enumerate(zip(self._shells, _SHELL_SPIN, _SHELL_TILT))])
+                            for i, (pts, spin, tilt) in enumerate(
+                                zip(self._shells[:self._visible], _SHELL_SPIN, _SHELL_TILT))])
+        shells = shells * (self.shell_scale * (1 + 0.03 * hb))
         front, back = shells[shells[:, 2] > 0], shells[shells[:, 2] <= 0][::2]  # sparser, dimmer back half
-        glow = 1 + 0.9 * self._pulse + 0.5 * self._rms  # core breathes with either voice
-        core = self._core @ _rot(-a * 2.0, 0.6).T * glow
-        b_back, b_front, b_core = _bits(back, w, h), _bits(front, w, h), _bits(core, w, h)
+        glowing = [self._core @ _rot(-a * 2.0, 0.6).T * ((1 + 0.9 * self._pulse + 0.5 * self._rms) * (1 + 0.25 * hb))]
+        extra = []
+        if self.state is HUDState.THINKING:  # a scan band sweeps up and down through the sphere
+            band = np.sin((time.monotonic() - self._state_t0) * 2.2) * 1.1
+            glowing.append(shells[np.abs(shells[:, 1] - band) < 0.08])
+        if self.state in (HUDState.LISTENING, HUDState.FOLLOWUP):
+            glowing.append(self._voice_ring())  # rings glow so they stand apart from the shells
+        if self.state is HUDState.CONFIRM:
+            glowing.append(self._confirm_ring())
+        if extra:
+            front = np.vstack([front] + extra)
+        b_back, b_front, b_core = _bits(back, w, h), _bits(front, w, h), _bits(np.vstack(glowing), w, h)
         layer = np.where(b_core > 0, _CORE, np.where(b_front > 0, _BRIGHT, np.where(b_back > 0, _DIM, 0)))
         return b_back | b_front | b_core, layer
 
     def _binary(self, bits: np.ndarray) -> list[str]:
-        """Lit cells show a 0 or 1; ~4% flip each frame so the sphere shimmers like streaming data."""
+        """Lit cells show a 0 or 1 that flip over time; faster while thinking, like data being crunched."""
         if self._digits.shape != bits.shape:
             self._digits = self._rng.choice(np.array(["0", "1"]), size=bits.shape)
-        flip = self._rng.random(bits.shape) < 0.04
+        rate = 0.2 if self.state is HUDState.THINKING else 0.04
+        flip = self._rng.random(bits.shape) < rate
         self._digits[flip] = np.where(self._digits[flip] == "0", "1", "0")
         return ["".join(row) for row in np.where(bits > 0, self._digits, " ")]
 

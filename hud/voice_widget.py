@@ -76,12 +76,20 @@ class VoiceWidget(Widget):
         self.wake = 0.0
         self.last: tuple[str, float, float] | None = None
         self.off_reason: str | None = None
+        self._dirty = False
 
     def on_mount(self) -> None:
-        self.set_interval(0.1, self.refresh)
+        # Repaint at most 10x/s and only when new mic data arrived; idle panels cost nothing per frame.
+        self.set_interval(0.1, self._repaint_if_dirty)
+
+    def _repaint_if_dirty(self) -> None:
+        if self._dirty:
+            self._dirty = False
+            self.refresh()
 
     def push(self, frame: AudioTelemetryFrame, wake: float | None = None) -> None:
         self.meter.push(frame)
+        self._dirty = True
         if wake is not None:
             self.wake = max(float(wake), self.wake * 0.85)  # hold peaks briefly so they are readable
 

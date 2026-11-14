@@ -54,3 +54,29 @@ def test_voice_panel_mic_off_message():
     v = VoiceWidget()
     v.mic_off("HUD-ONLY")
     assert "MIC OFF" in v.render().plain
+
+
+def test_voice_panel_repaints_only_when_data_changed():
+    from hud.voice_widget import VoiceWidget
+    v = VoiceWidget()
+    calls = []
+    v.refresh = lambda *a, **k: calls.append(1)
+    v._repaint_if_dirty()
+    assert calls == []                       # nothing new: no repaint
+    v.push(frame(0.05, True))
+    v._repaint_if_dirty()
+    v._repaint_if_dirty()
+    assert len(calls) == 1                   # one repaint per batch of new data
+
+
+def test_ticker_repaints_only_while_fading():
+    import time
+    from hud.log_widget import TickerWidget
+    t = TickerWidget()
+    calls = []
+    t.refresh = lambda *a, **k: calls.append(1)
+    t._repaint_if_fading()
+    assert calls == []
+    t.text, t._t0 = "hello", time.monotonic()
+    t._repaint_if_fading()
+    assert calls == [1]

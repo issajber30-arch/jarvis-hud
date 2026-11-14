@@ -285,3 +285,18 @@ async def test_hud_log_is_mirrored_to_a_redacted_file(tmp_path, monkeypatch):
         app._hud_log("ROUTE CLAUDE key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789")
     text = (tmp_path / "jarvis.log").read_text()
     assert "ROUTE CLAUDE" in text and "abcdefghijklmnop" not in text
+
+
+async def test_narrow_window_drops_rails():
+    app, _ = make_app()
+    async with app.run_test(size=(180, 50)) as pilot:
+        await pilot.pause(0.1)
+        assert app.query_one("TelemetryWidget").display and app.query_one("#right").display
+    app, _ = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(0.1)
+        assert not app.query_one("TelemetryWidget").display and app.query_one("#right").display
+    app, _ = make_app()
+    async with app.run_test(size=(90, 30)) as pilot:
+        await pilot.pause(0.1)
+        assert not app.query_one("#right").display
