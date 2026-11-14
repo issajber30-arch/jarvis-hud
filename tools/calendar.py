@@ -148,3 +148,13 @@ def delete_reminder(id: str) -> None:
     if rem is None:
         raise LookupError("reminder not found")
     _save(store.removeReminder_commit_error_(rem, True, None))
+
+
+def title_of(id: str) -> str | None:
+    store = _get_store()
+    _grant(store, _EVENTS)
+    item = store.eventWithIdentifier_(id)
+    if item is None:
+        _grant(store, _REMINDERS)
+        item = store.calendarItemWithIdentifier_(id)
+    return str(item.title()) if item is not None else None

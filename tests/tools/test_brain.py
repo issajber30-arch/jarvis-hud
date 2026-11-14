@@ -35,7 +35,7 @@ async def collect(gen): return [s async for s in gen]
 
 @pytest.fixture(autouse=True)
 def _no_dotenv(monkeypatch):
-    monkeypatch.setattr(cb, "load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr(cb, "dotenv_values", lambda *a, **k: {})
 
 
 async def test_brain_offline_yields_error_line(monkeypatch):

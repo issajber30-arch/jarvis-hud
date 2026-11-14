@@ -7,7 +7,7 @@ import re
 from typing import AsyncIterator, Awaitable, Callable
 
 import anthropic
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 import config
 from contracts import ACTIONS, Action, ActionResult, Tier
@@ -52,7 +52,6 @@ def _tools() -> list[dict]:
 
 class ClaudeBrain:
     def __init__(self, model: str = config.CLAUDE_MODEL, client=None):
-        load_dotenv(config.ROOT / ".env")  # never logs or prints the key
         self.model = model
         self._client = client
         self.history: list[dict] = []
@@ -61,9 +60,11 @@ class ClaudeBrain:
 
     def _get_client(self):
         if self._client is None:
-            if not os.environ.get("ANTHROPIC_API_KEY"):
+            # key stays out of os.environ so shell children can't inherit it
+            key = os.environ.get("ANTHROPIC_API_KEY") or dotenv_values(config.ROOT / ".env").get("ANTHROPIC_API_KEY")
+            if not key:
                 raise anthropic.AnthropicError("no API key")
-            self._client = anthropic.AsyncAnthropic(timeout=30.0, max_retries=1)
+            self._client = anthropic.AsyncAnthropic(api_key=key, timeout=30.0, max_retries=1)
         return self._client
 
     def _system_prompt(self, context: dict) -> str:

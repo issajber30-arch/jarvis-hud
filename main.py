@@ -180,7 +180,8 @@ class JarvisApp(App):
         self.query_one(LogWidget).log_line(line)
         try:  # local session log for debugging; git-ignored, already redacted
             LOG_FILE.parent.mkdir(exist_ok=True)
-            with LOG_FILE.open("a", encoding="utf-8") as f:
+            fd = os.open(LOG_FILE, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as f:
                 f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {line}\n")
         except OSError:
             pass  # logging must never break the HUD

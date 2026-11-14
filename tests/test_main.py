@@ -358,3 +358,12 @@ async def test_ticker_hint_only_when_empty():
         assert "SPACE TALK · ENTER CONFIRM · F FOCUS · T THEME · Q QUIT" in t.render().plain
         t.say("hello")
         assert "SPACE TALK" not in t.render().plain
+
+
+async def test_log_file_is_owner_only(tmp_path, monkeypatch):
+    import main
+    monkeypatch.setattr(main, "LOG_FILE", tmp_path / "jarvis.log")
+    app, _ = make_app()
+    async with app.run_test():
+        app._hud_log("hello")
+    assert (tmp_path / "jarvis.log").stat().st_mode & 0o777 == 0o600

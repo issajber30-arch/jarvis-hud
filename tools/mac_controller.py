@@ -7,6 +7,7 @@ The single shell=True-style call is run_shell, reachable only after check_shell(
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
 import time
@@ -42,11 +43,15 @@ def is_secret_path(path: str) -> bool:
 
 
 _BLOCKED_WORDS = {"sudo", "su", "doas", "security", "launchctl", "mkfs", "csrutil", "op", "bw", "bitwarden",
-                  "1password", "eval", "osascript", "dscl", "passwd"}
+                  "1password", "eval", "osascript", "dscl", "passwd", "env", "printenv", "curl", "wget", "base64",
+                  "openssl", "xargs"}
 _BLOCKED_RE = [re.compile(p) for p in (
     r"keychain", r"1password", r"bitwarden", r"diskutil\s+(?:secure)?erase", r"\bmkfs\b",
     r"\brm\s+(?:-\w+\s+)*-\w*[rf]\w*\s+(?:-\w+\s+)*(?:/|~|\$home)(?:\*|\s|$)", r"base64\s+(?:-d|--decode|-D)",
-    r"\bxxd\s+-r", r"\bdd\s+.*\bof=/dev/")]
+    r"\bxxd\s+-r", r"\bdd\s+.*\bof=/dev/",
+    r"\b(?:python[\d.]*|perl|ruby|node)\s+(?:-\w+\s+)*-\w*[ce]\b", r"\b(?:ba|z)?sh\s+(?:-\w+\s+)*-\w*c\b")]
+_CHAIN = re.compile(r"\$\(|`|[|;<>]|&&")  # substitution, chaining, redirection: checked on the raw command
+_MAX_CMD = 200
 
 
 def _normalise(cmd: str) -> str:
@@ -54,6 +59,8 @@ def _normalise(cmd: str) -> str:
 
 
 def check_shell(cmd: str) -> Tier:
+    if len(cmd) > _MAX_CMD or _CHAIN.search(cmd):
+        return Tier.BLOCKED
     n = _normalise(cmd)
     tokens = [t for t in re.split(r"[\s;|&()<>=,]+", n) if t]
     names = {t.rsplit("/", 1)[-1] for t in tokens} | {t.rsplit("/", 1)[-1].split(".")[0] for t in tokens}
@@ -104,7 +111,8 @@ def _from_run(a: Action, rc: int, out: str, ok_msg: str = "Done") -> ActionResul
 
 def _app(a: Action) -> str:
     name = str(a.args.get("app", "")).strip()
-    if not name or len(name) > 64 or any(ord(c) < 32 for c in name):
+    if not name or len(name) > 64 or any(ord(c) < 32 for c in name) or "/" in name or ":" in name \
+            or name.lower().endswith(".app"):
         raise ValueError("invalid app name")
     if _BLOCKED_APP.search(name):
         raise PermissionError("password managers are off limits")
@@ -123,12 +131,24 @@ def _home() -> Path:
     return Path("~").expanduser().resolve()
 
 
-def _user_path(raw) -> Path:
-    p = Path(str(raw)).expanduser().resolve()
+_DOTFILES = (".zshrc", ".zprofile", ".bashrc", ".bash_profile", ".profile")
+_TOP_DIRS = ("Documents", "Desktop", "Downloads", "Pictures", "Music", "Movies")
+
+
+def _user_path(raw, top_ok: bool = True) -> Path:
+    r = str(raw)
+    if not r.startswith(("/", "~")):
+        raise PermissionError("path must be absolute")
+    p = Path(r).expanduser().resolve()
+    h = _home()
     if is_secret_path(str(p)):
         raise PermissionError("secret path")
-    if p == _home() or _home() not in p.parents:
+    if p == h or h not in p.parents:
         raise PermissionError("path must be inside the home folder")
+    if p == h / "Library" or h / "Library" in p.parents or p in {h / d for d in _DOTFILES}:
+        raise PermissionError("path is protected")
+    if not top_ok and p in {h / d for d in _TOP_DIRS}:
+        raise PermissionError("cannot touch a top-level home folder")
     return p
 
 # ---------------------------------------------------------------- handlers
@@ -248,7 +268,7 @@ def _w_create_reminder(a):
 
 
 async def _move_file(a):
-    src, dst = _user_path(a.args["src"]), _user_path(a.args["dst"])
+    src, dst = _user_path(a.args["src"], False), _user_path(a.args["dst"])
     if not src.exists():
         return _fail(a, "Source does not exist")
     if dst.is_dir():
@@ -260,7 +280,7 @@ async def _move_file(a):
 
 
 async def _delete_file(a):
-    p = _user_path(a.args["path"])
+    p = _user_path(a.args["path"], False)
     if not p.exists():
         return _fail(a, "File does not exist")
     trash = _home() / ".Trash"
@@ -269,13 +289,17 @@ async def _delete_file(a):
     return _ok(a, f"Moved {p.name} to the Trash")
 
 
+_ENV_SECRET = ("KEY", "TOKEN", "SECRET", "PASSWORD")
+
+
 async def _run_shell(a):
     cmd = str(a.args["cmd"])
     if check_shell(cmd) is Tier.BLOCKED:  # re-check at the point of execution
         return _fail(a, "Blocked command")
     try:
+        env = {k: v for k, v in os.environ.items() if not any(w in k.upper() for w in _ENV_SECRET)}
         proc = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE,
-                                                     stderr=asyncio.subprocess.STDOUT)
+                                                     stderr=asyncio.subprocess.STDOUT, env=env, cwd=Path.home())
         out, _ = await asyncio.wait_for(proc.communicate(), 30)
     except asyncio.TimeoutError:
         proc.kill()
@@ -311,16 +335,22 @@ HANDLERS: dict[str, Callable[[Action], Awaitable[ActionResult]]] = {
 }
 
 
-def _readback(a: Action) -> str:
+async def _readback(a: Action) -> str:
     g = a.args.get
+    if a.name in ("delete_event", "reschedule_event", "delete_reminder"):
+        try:
+            title = await asyncio.to_thread(cal.title_of, str(g("id", "")))
+        except Exception:  # no permission / no store: fall back to the generic wording
+            title = None
+        what = f"\"{title}\"" if title else "an unknown calendar item"
+        verb = "Reschedule" if a.name == "reschedule_event" else "Delete"
+        return redact(f"{verb} {what}")
     return redact({
         "delete_file": f"Move {Path(str(g('path', ''))).name} to the Trash",
         "move_file": f"Move {Path(str(g('src', ''))).name} to {g('dst', '')}",
         "run_shell": f"Run the command: {g('cmd', '')}",
         "send_message": f"Send a message to {g('to', '')}: {g('text', '')}",
-        "delete_event": "Delete that calendar event", "reschedule_event": "Reschedule that calendar event",
-        "delete_reminder": "Delete that reminder",
-    }.get(a.name, a.name.replace("_", " ")))[:300]
+    }.get(a.name, a.name.replace("_", " ")))
 
 
 def _blocked_reason(a: Action) -> str | None:
@@ -338,8 +368,12 @@ async def execute(action: Action, confirm: Callable[[str], Awaitable[bool]]) -> 
     reason = _blocked_reason(action)
     if reason:
         return ActionResult(action.name, False, reason)
-    if action.tier is Tier.CONFIRM and not await confirm(_readback(action)):
-        return ActionResult(action.name, False, "Cancelled")
+    if action.tier is Tier.CONFIRM:
+        rb = await _readback(action)
+        if len(rb) > 300:  # never confirm a truncated description
+            return ActionResult(action.name, False, "Too long to confirm safely")
+        if not await confirm(rb):
+            return ActionResult(action.name, False, "Cancelled")
     handler = HANDLERS.get(action.name)
     if handler is None:
         return ActionResult(action.name, False, "Not implemented")

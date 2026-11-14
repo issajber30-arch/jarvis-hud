@@ -5,8 +5,10 @@ _R = "[REDACTED]"
 _PEM = re.compile(r"-----BEGIN [A-Z ]*-----.*?(?:-----END [A-Z ]*-----|\Z)", re.S)
 _TOKENS = re.compile(
     r"sk-ant-[A-Za-z0-9_\-]{8,}|sk-[A-Za-z0-9_\-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-    r"|xox[abprs]-[A-Za-z0-9\-]{10,}|AKIA[0-9A-Z]{16}|eyJ[\w\-]+\.[\w\-]+\.[\w\-]+")
-_ASSIGN = re.compile(r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key)(\s*[=:]\s*)[^\s,;]+")
+    r"|xox[abprs]-[A-Za-z0-9\-]{10,}|AKIA[0-9A-Z]{16}|eyJ[\w\-]+\.[\w\-]+\.[\w\-]+"
+    r"|AIza[\w-]{35}|sk_(?:live|test)_\w+|(?i:bearer)\s+[\w.~+/=-]{16,}")
+_ASSIGN = re.compile(r"(?i)([\w-]*(?:password|passwd|pwd|token|secret|api[_-]?key)[\w-]*)(\"?\s*[=:]\s*)"
+                     r"(\"[^\"]*\"|'[^']*'|[^\s,;]+)")
 
 
 def redact(text: str) -> str:
