@@ -1,0 +1,6 @@
+/* Palette mirrors config.py: cyan #4FD1FF, dim #1B4F63, amber #FFB547, red #FF4D4D, bg #05080C */
+Screen { background: #05080C; color: #4FD1FF; layout: grid; grid-size: 3 2; grid-columns: 28 1fr 40; grid-rows: 1fr 1; }
+TelemetryWidget { width: 100%; height: 100%; border: round #1B4F63; color: #4FD1FF; background: #05080C; }
+CoreWidget { width: 100%; height: 100%; background: #05080C; }
+LogWidget { width: 100%; height: 100%; border: round #1B4F63; color: #4FD1FF; background: #05080C; }
+TickerWidget { column-span: 3; height: 1; color: #4FD1FF; background: #05080C; }
