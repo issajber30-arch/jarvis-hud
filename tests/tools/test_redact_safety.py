@@ -10,7 +10,7 @@ from tools.redact import redact
 
 def test_redact_patterns():
     pem = "-----BEGIN RSA PRIVATE KEY-----\nabc\ndef\n-----END RSA PRIVATE KEY-----"
-    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"  # gitleaks:allow (public example token)
     for s in ["sk-ant-api03-abcdefghijklmnop", "sk-abcdefghijklmnopqrstuv", "ghp_" + "a" * 36,
               "github_pat_" + "A1b2" * 10, "xoxb-1234567890-abcdef", "AKIAIOSFODNN7EXAMPLE", jwt, pem]:
         out = redact(f"before {s} after")

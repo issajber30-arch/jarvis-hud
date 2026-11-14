@@ -58,6 +58,11 @@ class ClaudeBrain:
         self.wants_followup = False
         self._system = (config.ROOT / "prompts" / "jarvis_system.md").read_text(encoding="utf-8")
 
+    @property
+    def has_key(self) -> bool:
+        """True when a key is available (environment or .env), without loading it into os.environ."""
+        return bool(os.environ.get("ANTHROPIC_API_KEY") or dotenv_values(config.ROOT / ".env").get("ANTHROPIC_API_KEY"))
+
     def _get_client(self):
         if self._client is None:
             # key stays out of os.environ so shell children can't inherit it

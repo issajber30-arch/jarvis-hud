@@ -1,0 +1,2 @@
+# Public example JWT used as a redaction test fixture (payload {"sub":"123456"}), not a credential
+ec3e5c639e64e0fa851998e75d161c49e538863d:tests/tools/test_redact_safety.py:jwt:13

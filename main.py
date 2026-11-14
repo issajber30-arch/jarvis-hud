@@ -103,7 +103,7 @@ class JarvisApp(App):
     async def _boot(self) -> None:
         # Heavy models load off the UI thread; greet once the voice is warm.
         self.query_one(CoreWidget).set_boot_progress(0.15)
-        self._status("BRAIN", "ONLINE" if os.environ.get("ANTHROPIC_API_KEY") else "OFFLINE")
+        self._status("BRAIN", "ONLINE" if getattr(self.brain, "has_key", False) else "OFFLINE")
         self._status("ROUTER", "LOADING")
         if self.router is None:
             from tools.fast_router import FastRouter

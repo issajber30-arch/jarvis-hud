@@ -367,3 +367,20 @@ async def test_log_file_is_owner_only(tmp_path, monkeypatch):
     async with app.run_test():
         app._hud_log("hello")
     assert (tmp_path / "jarvis.log").stat().st_mode & 0o777 == 0o600
+
+
+async def test_brain_status_reflects_key_in_env_file(monkeypatch):
+    # Regression: the key now stays out of os.environ, so status must ask the brain, not the environment.
+    import audio.stt
+    monkeypatch.setattr(audio.stt, "transcribe", lambda a: "")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    brain = FakeBrain(["ok"])
+    brain.has_key = True
+    app = JarvisApp(router=FakeRouter(), brain=brain, speaker=FakeSpeaker(), listener=FakeListener(),
+                    controller=lambda a, c: None, agenda_fn=list, greet=True)
+    async with app.run_test() as pilot:
+        for _ in range(50):
+            await pilot.pause(0.02)
+            if app.query_one("StatusWidget").modules["BRAIN"] != "STANDBY":
+                break
+        assert app.query_one("StatusWidget").modules["BRAIN"] == "ONLINE"
