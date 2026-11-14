@@ -1,0 +1,19 @@
+# secrets
+.env
+.env.*
+!.env.example
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# models & caches
+.cache/
+models/
+# personal voice samples
+data/reference_voice/*.wav
+data/reference_voice/*.txt
+# logs & os
+logs/
+*.log
+.DS_Store
