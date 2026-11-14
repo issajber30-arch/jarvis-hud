@@ -16,6 +16,7 @@ from textual.containers import Vertical
 import config
 from contracts import Action, ActionResult, HUDState, JarvisResponse, ListenerEvent
 from hud.cards_widget import CardsWidget
+from hud.confirm_card import ConfirmCard
 from hud.core_widget import CoreWidget
 from hud.log_widget import LogWidget, TickerWidget
 from hud.status_widget import AgendaWidget, StatusWidget
@@ -62,6 +63,7 @@ class JarvisApp(App):
             yield LogWidget()
             yield AgendaWidget()
         yield TickerWidget()
+        yield ConfirmCard()
 
     # ---------- wiring ----------
     def on_mount(self) -> None:
@@ -224,6 +226,9 @@ class JarvisApp(App):
         self._hud_log(f"CONFIRM? {readback}")
         await self.speaker.speak([readback, lines.pick("confirm")])
         self.pending_confirm = asyncio.get_running_loop().create_future()
+        core = self.query_one(CoreWidget).region
+        self.query_one(ConfirmCard).show(readback, config.CONFIRM_TIMEOUT_S,
+                                         (core.x + core.width // 2, core.y + core.height // 2))
         self.listener.open_followup(config.CONFIRM_TIMEOUT_S)  # reply without the wake word
         try:
             ok = await asyncio.wait_for(self.pending_confirm, config.CONFIRM_TIMEOUT_S)
@@ -231,6 +236,7 @@ class JarvisApp(App):
             ok = False
         finally:
             self.pending_confirm = None
+            self.query_one(ConfirmCard).hide()
         self._hud_log("CONFIRMED" if ok else "CANCELLED")
         if not ok:
             await self.speaker.speak([lines.pick("cancelled")])
