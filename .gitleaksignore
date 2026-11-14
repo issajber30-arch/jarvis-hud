@@ -1,4 +1,4 @@
-# Public example JWT used as a redaction test fixture (payload {"sub":"123456"}), not a credential
-ec3e5c639e64e0fa851998e75d161c49e538863d:tests/tools/test_redact_safety.py:jwt:13
-# Fake Stripe-style keys used as redaction test fixtures, not credentials
-a2772463393c06174266e361798bcb27819d7a73:tests/tools/test_hardening.py:stripe-access-token:20
+# Known fake secrets used as redaction test fixtures (not credentials):
+# public example JWT ({"sub":"123456"}) and fake Stripe-style keys.
+44d1a95b0638cf2627443b73a2b3c5f7de448ec6:tests/tools/test_redact_safety.py:jwt:13
+fa6e2fd2e09d31d93efba27af083eaebe5b94fa1:tests/tools/test_hardening.py:stripe-access-token:20
