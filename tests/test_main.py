@@ -178,3 +178,13 @@ def test_no_private_name_clashes_with_textual():
     ours = [n for n, v in vars(JarvisApp).items() if n.startswith("_") and not n.startswith("__")
             and callable(v) and getattr(v, "__module__", "") == "main"]
     assert not [n for n in ours if hasattr(App, n)]
+
+
+def test_prepare_runtime_before_tui():
+    # Regression: router model download inside Textual crashed with "bad value(s) in fds_to_keep".
+    import os
+    from multiprocessing import resource_tracker
+    from main import prepare_runtime
+    prepare_runtime()
+    assert os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] == "1"
+    assert resource_tracker._resource_tracker._fd is not None

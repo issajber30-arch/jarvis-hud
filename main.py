@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from datetime import datetime
 
@@ -271,5 +272,16 @@ class JarvisApp(App):
         self.exit()
 
 
+def prepare_runtime() -> None:
+    """Call before the TUI takes over the terminal."""
+    # Model downloads draw tqdm bars whose multiprocessing lock spawns a helper that needs the real stderr;
+    # inside Textual stderr has no fd and the spawn crashes. Silence bars and start the helper up front.
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    os.environ["TQDM_DISABLE"] = "1"
+    from multiprocessing import resource_tracker
+    resource_tracker.ensure_running()
+
+
 if __name__ == "__main__":
+    prepare_runtime()
     JarvisApp().run()
