@@ -56,6 +56,14 @@ _ARGS = {"open_app": {"app": "{app}"}, "quit_app": {"app": "{app}"}, "set_volume
 
 
 @pytest.fixture(scope="session")
+def real_vectors_path():
+    import config
+    if not config.VECTORS_PATH.exists():
+        pytest.skip("data/command_vectors.npz not built yet (lives on feat/data until merge)")
+    return config.VECTORS_PATH
+
+
+@pytest.fixture(scope="session")
 def vectors_path(tmp_path_factory):
     from model2vec import StaticModel
     rows = [(a, p, "train") for a, (tr, _) in _PHRASES.items() for p in tr]
