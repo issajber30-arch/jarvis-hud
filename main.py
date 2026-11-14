@@ -9,11 +9,13 @@ from datetime import datetime
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Vertical
 
 import config
 from contracts import Action, ActionResult, HUDState, JarvisResponse, ListenerEvent
 from hud.core_widget import CoreWidget
 from hud.log_widget import LogWidget, TickerWidget
+from hud.status_widget import AgendaWidget, StatusWidget
 from hud.telemetry_widget import TelemetryWidget
 from tools import lines
 from tools.redact import redact
@@ -48,7 +50,10 @@ class JarvisApp(App):
     def compose(self) -> ComposeResult:
         yield TelemetryWidget()
         yield CoreWidget()
-        yield LogWidget()
+        with Vertical(id="right"):
+            yield StatusWidget()
+            yield LogWidget()
+            yield AgendaWidget()
         yield TickerWidget()
 
     # ---------- wiring ----------
@@ -80,22 +85,31 @@ class JarvisApp(App):
 
     async def _boot(self) -> None:
         # Heavy models load off the UI thread; greet once the voice is warm.
+        self._status("BRAIN", "ONLINE" if os.environ.get("ANTHROPIC_API_KEY") else "OFFLINE")
+        self._status("ROUTER", "LOADING")
         if self.router is None:
             from tools.fast_router import FastRouter
             self.router = await asyncio.to_thread(FastRouter)
-        self._hud_log("ROUTER ONLINE")
+        self._status("ROUTER", "ONLINE")
+        self._status("VOICE", "LOADING")
         if hasattr(self.speaker, "_synth"):
             await asyncio.to_thread(self.speaker._synth, "Ready.")
-        self._hud_log("VOICE ONLINE")
+        self._status("VOICE", "ONLINE")
+        self._status("SPEECH", "LOADING")
         from audio import stt
         import numpy as np
         await asyncio.to_thread(stt.transcribe, np.zeros(config.SAMPLE_RATE, np.float32))  # load Whisper now
-        self._hud_log("SPEECH ONLINE")
+        self._status("SPEECH", "ONLINE")
         try:
             await asyncio.to_thread(self.listener.start)
-            self._hud_log("MIC ONLINE · SAY 'HEY JARVIS' OR TAP SPACE")
+            self._status("MIC", "ONLINE")
+            self._status("WAKE", "ONLINE")
+            self._hud_log("SAY 'HEY JARVIS' OR TAP SPACE")
         except Exception as e:  # no mic / permission denied: HUD still usable for logs
+            self._status("MIC", "OFFLINE")
             self._hud_log(f"MIC OFFLINE {type(e).__name__}")
+        await self._refresh_agenda()
+        self.set_interval(300, self._refresh_agenda)
         h = datetime.now().hour
         await self._say([lines.pick("greeting_morning" if h < 12 else "greeting_afternoon" if h < 18
                                     else "greeting_evening")])
@@ -113,6 +127,21 @@ class JarvisApp(App):
     def _set_state(self, state: HUDState) -> None:
         self.state = state
         self.query_one(CoreWidget).state = state
+        self.query_one(StatusWidget).state = state.name
+
+    def _status(self, module: str, state: str) -> None:
+        self.query_one(StatusWidget).set(module, state)
+        if state in ("ONLINE", "OFFLINE"):
+            self._hud_log(f"{module} {state}")
+
+    async def _refresh_agenda(self) -> None:
+        agenda = self.query_one(AgendaWidget)
+        try:
+            agenda.set_items(await asyncio.to_thread(self.agenda_fn))
+            self.query_one(StatusWidget).set("CALENDAR", "ONLINE")
+        except Exception:  # permission denied or EventKit unavailable
+            agenda.set_error("NO CALENDAR ACCESS")
+            self.query_one(StatusWidget).set("CALENDAR", "OFFLINE")
 
     def _hud_log(self, text: str) -> None:
         self.query_one(LogWidget).log_line(redact(text))
@@ -303,7 +332,11 @@ def hud_only_app() -> JarvisApp:
     silent = _Silent()
     app = JarvisApp(router=silent, speaker=silent, listener=silent, brain=silent,
                     controller=lambda a, c: None, agenda_fn=list, greet=False)
-    app.call_after_refresh(app._hud_log, "HUD-ONLY MODE · NO MIC OR VOICE")
+    def label() -> None:
+        app.query_one(StatusWidget).mode = "HUD-ONLY"
+        app._hud_log("HUD-ONLY MODE · NO MIC OR VOICE")
+
+    app.call_after_refresh(label)
     return app
 
 

@@ -1,6 +1,9 @@
 /* Palette mirrors config.py: primary #FFB23F, dim #6B3F0E, bg #070503 */
-Screen { background: #070503; color: #FFB23F; layout: grid; grid-size: 3 2; grid-columns: 28 1fr 40; grid-rows: 1fr 1; }
+Screen { background: #070503; color: #FFB23F; layout: grid; grid-size: 3 2; grid-columns: 36 1fr 42; grid-rows: 1fr 1; }
 TelemetryWidget { width: 100%; height: 100%; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 CoreWidget { width: 100%; height: 100%; background: #070503; }
-LogWidget { width: 100%; height: 100%; border: round #6B3F0E; color: #FFB23F; background: #070503; }
+#right { width: 100%; height: 100%; }
+StatusWidget { width: 100%; height: 13; border: round #6B3F0E; color: #FFB23F; background: #070503; }
+AgendaWidget { width: 100%; height: 14; border: round #6B3F0E; color: #FFB23F; background: #070503; }
+LogWidget { width: 100%; height: 1fr; border: round #6B3F0E; color: #FFB23F; background: #070503; }
 TickerWidget { column-span: 3; height: 1; color: #FFB23F; background: #070503; }

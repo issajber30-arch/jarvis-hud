@@ -213,3 +213,31 @@ async def test_hud_only_mode_boots_without_audio_or_models():
         await pilot.press("space")  # talk key must be harmless with no mic
         assert app.query_one("CoreWidget") is not None
         assert "HUD-ONLY" in " ".join(app.query_one("LogWidget").lines)
+
+
+async def test_hud_only_rails_show_standby_and_agenda():
+    from main import hud_only_app
+    app = hud_only_app()
+    async with app.run_test(size=(180, 60)) as pilot:
+        await pilot.pause(0.3)
+        status = app.query_one("StatusWidget")
+        assert status.mode == "HUD-ONLY" and set(status.modules.values()) == {"STANDBY"}
+        assert "NO EVENTS" in app.query_one("AgendaWidget").render().plain
+
+
+async def test_boot_lights_status_and_loads_agenda(monkeypatch):
+    import audio.stt
+    from datetime import datetime
+    monkeypatch.setattr(audio.stt, "transcribe", lambda a: "")
+    agenda = [{"kind": "event", "title": "Standup", "start": datetime.now()}]
+    app = JarvisApp(router=FakeRouter(), brain=FakeBrain(["ok"]), speaker=FakeSpeaker(), listener=FakeListener(),
+                    controller=lambda a, c: None, agenda_fn=lambda: agenda, greet=True)
+    async with app.run_test(size=(180, 60)) as pilot:
+        status = app.query_one("StatusWidget")
+        for _ in range(100):
+            await pilot.pause(0.02)
+            if status.modules["MIC"] == "ONLINE" and app.query_one("AgendaWidget").items:
+                break
+        for m in ("ROUTER", "VOICE", "SPEECH", "MIC", "CALENDAR"):
+            assert status.modules[m] == "ONLINE", m
+        assert "STANDUP" in app.query_one("AgendaWidget").render().plain
