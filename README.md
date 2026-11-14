@@ -11,7 +11,9 @@ Say *"hey Jarvis"*, ask for anything, and watch a holographic data sphere think,
 ![Brain Claude](https://img.shields.io/badge/brain-Claude-FFB23F?style=flat-square&labelColor=070503)
 ![License MIT](https://img.shields.io/badge/license-MIT-FFB23F?style=flat-square&labelColor=070503)
 
-![Jarvis HUD speaking](docs/images/hud-gold.svg)
+![Jarvis HUD: idle heartbeat, listening, thinking, speaking](docs/demo/jarvis-demo.gif)
+
+<sub>Idle heartbeat → "hey Jarvis" (voice ring) → thinking (scan band) → speaking (core pulses, captions type out). Rendered frame by frame from the real HUD · <a href="docs/demo/jarvis-demo.mp4">MP4</a></sub>
 
 </div>
 
@@ -36,6 +38,8 @@ A full-terminal heads-up display, drawn at a steady **30 fps** in about 3 ms per
 - **Left rail** — clock, all 10 CPU cores, 60 s CPU and network graphs, memory, disk, battery time left, uptime, top apps.
 - **Right rail** — module status lights, a **voice panel** (level, noise floor, *clarity* = how far your voice stands above the room, live spectrum, wake-word meter, exactly what it heard and how fast), active timers, the action log and today's agenda.
 - **Keys** — `Space` talk/interrupt · `Enter` confirm · `F` focus mode · `T` theme · `Q` quit.
+
+![Jarvis HUD speaking](docs/images/hud-gold.svg)
 
 | Listening | Thinking | Confirming |
 |---|---|---|
