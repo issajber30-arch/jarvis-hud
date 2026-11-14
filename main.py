@@ -5,6 +5,7 @@ import asyncio
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 from textual.app import App, ComposeResult
@@ -17,6 +18,7 @@ from hud.core_widget import CoreWidget
 from hud.log_widget import LogWidget, TickerWidget
 from hud.status_widget import AgendaWidget, StatusWidget
 from hud.telemetry_widget import TelemetryWidget
+from hud.voice_widget import VoiceWidget
 from tools import lines
 from tools.redact import redact
 
@@ -52,6 +54,7 @@ class JarvisApp(App):
         yield CoreWidget()
         with Vertical(id="right"):
             yield StatusWidget()
+            yield VoiceWidget()
             yield LogWidget()
             yield AgendaWidget()
         yield TickerWidget()
@@ -75,7 +78,7 @@ class JarvisApp(App):
         if self.listener is None:
             from audio.listener import Listener
             self.listener = Listener(on_event=self._from_thread(self._on_listener_event),
-                                     on_audio=self._from_thread(self._push_audio))
+                                     on_audio=self._from_thread(self._push_mic))
         if self.greet:
             self.run_worker(self._boot(), group="boot")
         elif self.router is None:
@@ -124,6 +127,11 @@ class JarvisApp(App):
     def _push_audio(self, frame) -> None:
         self.query_one(CoreWidget).push_audio(frame)
 
+    def _push_mic(self, frame) -> None:
+        # Mic frames also feed the voice panel; Jarvis's own voice (speaker frames) only moves the sphere.
+        self._push_audio(frame)
+        self.query_one(VoiceWidget).push(frame, wake=getattr(self.listener, "wake_score", None))
+
     def _set_state(self, state: HUDState) -> None:
         self.state = state
         self.query_one(CoreWidget).state = state
@@ -162,7 +170,10 @@ class JarvisApp(App):
 
     async def _on_utterance_audio(self, audio) -> None:
         from audio import stt
+        t0 = time.perf_counter()
         text = await asyncio.to_thread(stt.transcribe, audio)
+        self.query_one(VoiceWidget).heard(redact(text) or "(nothing)", len(audio) / config.SAMPLE_RATE,
+                                          time.perf_counter() - t0)
         if self.pending_confirm is not None:
             self.answer_confirm(text)
             return
@@ -334,6 +345,7 @@ def hud_only_app() -> JarvisApp:
                     controller=lambda a, c: None, agenda_fn=list, greet=False)
     def label() -> None:
         app.query_one(StatusWidget).mode = "HUD-ONLY"
+        app.query_one(VoiceWidget).mic_off("HUD-ONLY MODE")
         app._hud_log("HUD-ONLY MODE · NO MIC OR VOICE")
 
     app.call_after_refresh(label)

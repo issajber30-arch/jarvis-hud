@@ -241,3 +241,20 @@ async def test_boot_lights_status_and_loads_agenda(monkeypatch):
         for m in ("ROUTER", "VOICE", "SPEECH", "MIC", "CALENDAR"):
             assert status.modules[m] == "ONLINE", m
         assert "STANDUP" in app.query_one("AgendaWidget").render().plain
+
+
+async def test_voice_panel_hears_only_the_mic(monkeypatch):
+    import numpy as np
+    import audio.stt
+    from contracts import AudioTelemetryFrame
+    app, _ = make_app()
+    monkeypatch.setattr(audio.stt, "transcribe", lambda a: "open safari")
+    async with app.run_test(size=(180, 60)) as pilot:
+        voice = app.query_one("VoiceWidget")
+        f = AudioTelemetryFrame(rms=0.05, fft=np.zeros(64, np.float32), vad=True, ts=0.0)
+        app._push_mic(f)
+        app._push_audio(f)  # Jarvis's own voice: sphere only
+        assert voice.meter.frames == 1
+        await app._on_utterance_audio(np.zeros(16000, np.float32))
+        await pilot.pause(0.1)
+        assert "OPEN SAFARI" in voice.render().plain

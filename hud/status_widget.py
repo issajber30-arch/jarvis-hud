@@ -56,7 +56,7 @@ class StatusWidget(Widget):
 class AgendaWidget(Widget):
     """Today's events and reminders, refreshed by the app."""
 
-    DEFAULT_CSS = "AgendaWidget { border: round #6B3F0E; padding: 0 1; height: 14; }"
+    DEFAULT_CSS = "AgendaWidget { border: round #6B3F0E; padding: 0 1; height: 11; }"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

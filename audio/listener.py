@@ -36,6 +36,7 @@ class Listener:
         self._lock = threading.RLock()
         self._stream = None
         self._speaking = False
+        self.wake_score = 0.0
         self._followup_until = 0.0
         self._mode: str | None = None  # None (idle) | "wake" | "ptt" | "followup"
         self._buf: list[np.ndarray] = []
@@ -163,7 +164,8 @@ class Listener:
 
     def _idle(self, block, speech):
         thr = config.WAKE_THRESHOLD_SPEAKING if self._speaking else config.WAKE_THRESHOLD
-        if self._wake_fn(block) >= thr:
+        self.wake_score = float(self._wake_fn(block))  # read by the HUD's voice panel
+        if self.wake_score >= thr:
             if self._speaking:
                 self._emit(ListenerEvent("barge_in"))
             self._emit(ListenerEvent("wake"))
